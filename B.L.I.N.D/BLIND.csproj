@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>BLIND</AssemblyName>
+    <RootNamespace>BLIND</RootNamespace>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GameDir>F:\Games\Nuclear.Option.v0.34.1</GameDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="tools\**\*.cs;ShaderProject\**\*.cs" />
+    <Reference Include="UnityEngine.AssetBundleModule"><HintPath>$(GameDir)\NuclearOption_Data\Managed\UnityEngine.AssetBundleModule.dll</HintPath><Private>false</Private></Reference>
+    <None Include="Assets\blind-thermal.bundle" CopyToOutputDirectory="PreserveNewest" Link="blind-thermal.bundle" Condition="Exists('Assets\blind-thermal.bundle')" />
+    <Reference Include="netstandard"><HintPath>$(GameDir)\NuclearOption_Data\Managed\netstandard.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="BepInEx"><HintPath>$(GameDir)\BepInEx\core\BepInEx.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(GameDir)\BepInEx\core\0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameDir)\NuclearOption_Data\Managed\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Mirage"><HintPath>$(GameDir)\NuclearOption_Data\Managed\Mirage.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(GameDir)\NuclearOption_Data\Managed\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameDir)\NuclearOption_Data\Managed\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(GameDir)\NuclearOption_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(GameDir)\NuclearOption_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(GameDir)\NuclearOption_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(GameDir)\NuclearOption_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ImageConversionModule"><HintPath>$(GameDir)\NuclearOption_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.RenderPipelines.Core.Runtime"><HintPath>$(GameDir)\NuclearOption_Data\Managed\Unity.RenderPipelines.Core.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.RenderPipelines.Universal.Runtime"><HintPath>$(GameDir)\NuclearOption_Data\Managed\Unity.RenderPipelines.Universal.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule"><HintPath>$(GameDir)\NuclearOption_Data\Managed\UnityEngine.ParticleSystemModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(DeployToGame)' == 'true'">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\BepInEx\plugins" ContinueOnError="true" />
+    <Copy SourceFiles="Assets\blind-thermal.bundle" DestinationFolder="$(GameDir)\BepInEx\plugins" ContinueOnError="true" Condition="Exists('Assets\blind-thermal.bundle')" />
+  </Target>
+</Project>

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>Torpedo</AssemblyName>
+    <Product>Torpedo</Product>
+    <Version>1.4.8</Version>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Torpedo</RootNamespace>
+    <GameDir>F:\Games\Nuclear.Option.v0.34.1</GameDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx"><HintPath>$(GameDir)\BepInEx\core\BepInEx.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(GameDir)\BepInEx\core\0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="netstandard"><HintPath>$(GameDir)\NuclearOption_Data\Managed\netstandard.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GameDir)\NuclearOption_Data\Managed\Assembly-CSharp.dll</HintPath><Private>false</Private>
+    </Reference>
+    <Reference Include="Mirage">
+      <HintPath>$(GameDir)\NuclearOption_Data\Managed\Mirage.dll</HintPath><Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine"><HintPath>$(GameDir)\NuclearOption_Data\Managed\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameDir)\NuclearOption_Data\Managed\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(GameDir)\NuclearOption_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule"><HintPath>$(GameDir)\NuclearOption_Data\Managed\UnityEngine.ParticleSystemModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AudioModule"><HintPath>$(GameDir)\NuclearOption_Data\Managed\UnityEngine.AudioModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+</Project>
