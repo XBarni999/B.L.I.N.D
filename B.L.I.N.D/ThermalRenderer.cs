@@ -264,12 +264,15 @@ namespace BLIND
                 name += " " + original.name.ToLowerInvariant();
             }
 
-            // Exclude cold non-thermal effects (ground decals, craters, shockwaves, dirt, dust)
+            // Exclude cold non-thermal effects (ground decals, craters, shockwaves, dirt, dust, ground flashes, optical billboards)
             bool isNonThermal = name.Contains("shock") || name.Contains("wave") || name.Contains("distortion") ||
                                 name.Contains("refract") || name.Contains("decal") || name.Contains("crater") ||
-                                name.Contains("scorch") || name.Contains("dirt") || name.Contains("dust") ||
-                                name.Contains("rubble") || name.Contains("debris") || name.Contains("sand") ||
-                                name.Contains("gravel") || name.Contains("vapor") || name.Contains("contrail");
+                                name.Contains("scorch") || name.Contains("ground") || name.Contains("dirt") ||
+                                name.Contains("dust") || name.Contains("rubble") || name.Contains("debris") ||
+                                name.Contains("sand") || name.Contains("gravel") || name.Contains("vapor") ||
+                                name.Contains("contrail") || name.Contains("glow") || name.Contains("light") ||
+                                name.Contains("flash") || name.Contains("ring") || name.Contains("circle") ||
+                                name.Contains("floor") || name.Contains("terrain");
 
             if (isNonThermal)
             {
@@ -279,7 +282,7 @@ namespace BLIND
             }
 
             // Real thermal emitters: explosions, fireballs, blasts, flames, rocket plumes
-            bool isExplosionOrFlame = name.Contains("fire") || name.Contains("flame") || name.Contains("flash") ||
+            bool isExplosionOrFlame = name.Contains("fire") || name.Contains("flame") ||
                                       name.Contains("fireball") || name.Contains("explos") || name.Contains("blast") ||
                                       name.Contains("shrapnel") || name.Contains("afterburn") || name.Contains("spark") ||
                                       name.Contains("flare") || name.Contains("tracer") || name.Contains("exhaust") ||
