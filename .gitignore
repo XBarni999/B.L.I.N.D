@@ -43,3 +43,7 @@ Recordings/
 *.userosv
 *.suo
 Thumbs.db
+B.L.I.N.D/backups/
+B.L.I.N.D/dist/
+B.L.I.N.D/validation/
+*.zip

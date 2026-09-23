@@ -36,6 +36,9 @@ namespace BLIND
         private UniversalAdditionalCameraData cameraData;
         private bool oldPost, oldDepth;
         private SensorMode mode;
+#if BLIND_DIAGNOSTICS
+        internal readonly List<Renderer> DiagnosticSurfaces = new List<Renderer>();
+#endif
 
         private sealed class Body
         {
@@ -48,6 +51,9 @@ namespace BLIND
             internal Material[] Materials;
             internal Material[] Originals;
             internal float EffectHeat;
+            internal Mesh ParticleMesh;
+            internal ParticleSystem Particles;
+            internal bool Disabled;
         }
 
         internal ThermalRenderer(BlindPlugin plugin)
@@ -111,11 +117,11 @@ namespace BLIND
         {
             if (root == null) return;
             foreach (var r in root.GetComponentsInChildren<ParticleSystemRenderer>(true)) effects.Add(r);
-            foreach (var r in root.GetComponentsInChildren<TrailRenderer>(true)) effects.Add(r);
         }
 
-        internal static void RegisterSpawnedEffect(GameObject root)
+        internal static void RegisterSpawnedEffect(UnityEngine.Object spawned)
         {
+            var root = spawned as GameObject;
             if (Active != null) Active.RegisterEffect(root);
         }
 
@@ -124,7 +130,6 @@ namespace BLIND
             if (now < nextScan) return;
             nextScan = now + 0.6f;
             foreach (var r in UnityEngine.Object.FindObjectsOfType<ParticleSystemRenderer>()) effects.Add(r);
-            foreach (var r in UnityEngine.Object.FindObjectsOfType<TrailRenderer>()) effects.Add(r);
             deadBodies.Clear();
             foreach (var pair in bodies) if (pair.Key == null) deadBodies.Add(pair.Key);
             foreach (var key in deadBodies) bodies.Remove(key);
@@ -132,7 +137,7 @@ namespace BLIND
             foreach (var pair in surfaces) if (pair.Key == null) deadSurfaces.Add(pair.Key);
             foreach (var key in deadSurfaces) { DestroySurface(surfaces[key]); surfaces.Remove(key); }
             effects.RemoveWhere(r => r == null);
-            activeMissiles.RemoveWhere(m => m == null);
+            activeMissiles.RemoveWhere(m => m == null || !m.gameObject.activeInHierarchy);
         }
 
         private Body GetBody(Unit unit, float now)
@@ -227,8 +232,8 @@ namespace BLIND
                 positions[0] = new Vector4(p.x,p.y,p.z,Mathf.Clamp(size*0.25f,0.7f,2.5f));
                 powers[0] = new Vector4(Mathf.Max(0,body.Heat-0.2f)*1.7f,0,0,0);
             }
-            cmd.SetGlobalVectorArray("_HeatSources", positions);
-            cmd.SetGlobalVectorArray("_HeatPowers", powers);
+            cmd.SetGlobalVectorArray("_BlindHeatSources", positions);
+            cmd.SetGlobalVectorArray("_BlindHeatPowers", powers);
         }
 
         private Surface GetSurface(Renderer r)
@@ -248,32 +253,31 @@ namespace BLIND
                 if (texProp != null) tex = original.GetTexture(texProp);
                 if (tex != null)
                 {
-                    material.SetTexture("_DetailTex", tex);
-                    material.SetTextureScale("_DetailTex", original.GetTextureScale(texProp));
-                    material.SetTextureOffset("_DetailTex", original.GetTextureOffset(texProp));
-                    material.SetFloat("_UseAlpha", 1f);
+                    material.SetTexture("_BlindDetailTex", tex);
+                    material.SetTextureScale("_BlindDetailTex", original.GetTextureScale(texProp));
+                    material.SetTextureOffset("_BlindDetailTex", original.GetTextureOffset(texProp));
                 }
                 else
                 {
-                    material.SetFloat("_UseAlpha", 0f);
+                    material.SetFloat("_BlindUseAlpha", 0f);
                 }
                 bool particle = r is ParticleSystemRenderer || r is TrailRenderer;
-                material.SetFloat("_Cutoff", particle ? 0.05f : (original.HasProperty("_Cutoff") ? original.GetFloat("_Cutoff") : 0.5f));
-                material.SetFloat("_DetailAmount", particle ? 0 : 0.10f);
+                material.SetFloat("_BlindUseAlpha", particle || original.IsKeywordEnabled("_ALPHATEST_ON") ? 1f : 0f);
+                material.SetFloat("_BlindCutoff", particle ? 0.05f : (original.HasProperty("_Cutoff") ? original.GetFloat("_Cutoff") : 0.5f));
+                material.SetFloat("_BlindDetailAmount", particle ? 0 : 0.10f);
                 surface.Materials[n] = material;
                 name += " " + original.name.ToLowerInvariant();
+                // Alpha-blended textures use alpha; additive textures use RGB as their shape.
+                bool additive = original.HasProperty("_DstBlend") && original.GetFloat("_DstBlend") == (float)BlendMode.One;
+                material.SetFloat("_BlindAdditiveShape", additive ? 1f : 0f);
             }
 
             // Exclude non-thermal and flat ground overlays that cause Z-fighting (ground decals, optical flashes, shockwaves)
-            bool isNonThermal = name.Contains("shock") || name.Contains("wave") || name.Contains("distortion") ||
+            bool isNonThermal = name.Contains("shockwave") || name.Contains("distortion") ||
                                 name.Contains("refract") || name.Contains("decal") || name.Contains("crater") ||
-                                name.Contains("scorch") || name.Contains("ground") || name.Contains("dirt") ||
-                                name.Contains("dust") || name.Contains("rubble") || name.Contains("debris") ||
-                                name.Contains("sand") || name.Contains("gravel") || name.Contains("vapor") ||
-                                name.Contains("contrail") || name.Contains("glow") || name.Contains("light") ||
-                                name.Contains("flash") || name.Contains("ring") || name.Contains("circle") ||
-                                name.Contains("floor") || name.Contains("terrain") || name.Contains("billboard") ||
-                                name.Contains("quad");
+                                name.Contains("scorch") || name.Contains("dust") || name.Contains("dirt") ||
+                                name.Contains("rubble") || name.Contains("debris") || name.Contains("vapor") ||
+                                name.Contains("contrail");
 
             if (isNonThermal)
             {
@@ -289,18 +293,20 @@ namespace BLIND
                            name.Contains("tracer") || name.Contains("exhaust") || name.Contains("thrust");
 
             bool isSmoke = name.Contains("smoke") || name.Contains("plume");
-            bool isMissileTrail = name.Contains("missile") || name.Contains("rocket") || name.Contains("trail");
-
-            if (isFlame)
-                surface.EffectHeat = 3.2f;
-            else if (isSmoke)
-                surface.EffectHeat = 1.35f;
-            else if (isMissileTrail)
+            if (isSmoke)
+                surface.EffectHeat = 0.22f;
+            else if (isFlame)
                 surface.EffectHeat = 2.0f;
             else
                 surface.EffectHeat = 0f;
 
             surfaces.Add(r, surface);
+            if (r is ParticleSystemRenderer && surface.EffectHeat > 0)
+            {
+                surface.Particles = r.GetComponent<ParticleSystem>();
+                surface.ParticleMesh = new Mesh { name = "BLIND particle snapshot", hideFlags = HideFlags.HideAndDontSave };
+                surface.ParticleMesh.MarkDynamic();
+            }
             return surface;
         }
 
@@ -308,11 +314,9 @@ namespace BLIND
         {
             if (r == null || !r.enabled || r.forceRenderingOff || !r.gameObject.activeInHierarchy ||
                 (camera.cullingMask & (1 << r.gameObject.layer)) == 0) return false;
-            Vector3 p = r.transform.position;
-            Vector3 toCam = p - camera.transform.position;
-            if (toCam.sqrMagnitude > 25000f * 25000f) return false;
-            if (Vector3.Dot(toCam, camera.transform.forward) < -5f) return false;
-            if (r is ParticleSystemRenderer || r is TrailRenderer) return true;
+            // World/custom-space particle emitters can sit at the world origin. Cull their bounds,
+            // never their Transform, and never exempt effects from the sensor frustum.
+            if (r.bounds.SqrDistance(camera.transform.position) > 25000f * 25000f) return false;
             return GeometryUtility.TestPlanesAABB(frustum, r.bounds);
         }
 
@@ -331,8 +335,8 @@ namespace BLIND
                 Missile missile = unit as Missile;
                 if (missile != null && !missile.disabled && missile.EngineOn()) burningMissiles.Add(missile);
                 SetSources(cmd,unit,body);
-                cmd.SetGlobalFloat("_BodyHeat",body.Heat);
-                cmd.SetGlobalFloat("_Effect",0);
+                cmd.SetGlobalFloat("_BlindBodyHeat",body.Heat);
+                cmd.SetGlobalFloat("_BlindEffect",0);
                 if (body.Renderers != null)
                 {
                     foreach (var r in body.Renderers)
@@ -354,8 +358,8 @@ namespace BLIND
                     burningMissiles.Add(m);
                     Body body = GetBody(m, now);
                     SetSources(cmd, m, body);
-                    cmd.SetGlobalFloat("_BodyHeat", body.Heat);
-                    cmd.SetGlobalFloat("_Effect", 0);
+                    cmd.SetGlobalFloat("_BlindBodyHeat", body.Heat);
+                    cmd.SetGlobalFloat("_BlindEffect", 0);
                     if (body.Renderers != null)
                     {
                         foreach (var r in body.Renderers)
@@ -372,21 +376,53 @@ namespace BLIND
             }
             Array.Clear(positions,0,positions.Length);
             Array.Clear(powers,0,powers.Length);
-            cmd.SetGlobalVectorArray("_HeatSources",positions);
-            cmd.SetGlobalVectorArray("_HeatPowers",powers);
-            cmd.SetGlobalFloat("_Effect",1);
+            cmd.SetGlobalVectorArray("_BlindHeatSources",positions);
+            cmd.SetGlobalVectorArray("_BlindHeatPowers",powers);
+#if BLIND_DIAGNOSTICS
+            cmd.SetGlobalFloat("_BlindEffect",0);
+            cmd.SetGlobalFloat("_BlindBodyHeat",0.6f);
+            foreach(var r in DiagnosticSurfaces)
+            {
+                if(!Visible(r)) continue;
+                var surface=GetSurface(r);
+                for(int sub=0;sub<surface.Materials.Length;sub++)
+                    if(surface.Materials[sub]!=null) cmd.DrawRenderer(r,surface.Materials[sub],sub,1);
+            }
+#endif
+            cmd.SetGlobalFloat("_BlindEffect",1);
             foreach (var r in effects)
             {
                 if (!Visible(r)) continue;
                 var surface = GetSurface(r);
-                if (surface.EffectHeat <= 0) continue;
-                cmd.SetGlobalFloat("_BodyHeat",surface.EffectHeat);
-                for (int sub=0; sub<surface.Materials.Length; sub++)
-                    if (surface.Materials[sub] != null) cmd.DrawRenderer(r,surface.Materials[sub],sub,2);
+                var particleRenderer = r as ParticleSystemRenderer;
+                if (surface.EffectHeat <= 0 || surface.Disabled || particleRenderer == null ||
+                    surface.Particles == null || surface.Particles.particleCount == 0 || surface.ParticleMesh == null) continue;
+                // Bake for this camera: stock effects may use instancing, custom streams and
+                // view-facing geometry. Replaying DrawRenderer with a different shader is unsafe.
+                // The bool overload remains available in the game's supported Unity runtime.
+#pragma warning disable 618
+                try { particleRenderer.BakeMesh(surface.ParticleMesh, camera, true); }
+#pragma warning restore 618
+                catch (Exception e)
+                {
+                    surface.Disabled = true;
+                    BlindPlugin.LogSource.LogWarning("[Thermal] Unsupported effect skipped: " + r.name + ": " + e.Message);
+                    continue;
+                }
+                if (surface.ParticleMesh.vertexCount == 0) continue;
+                // BakeMesh(true) includes simulation-space rotation/scale, but not its origin.
+                // Applying localToWorld again double-transforms world/Datum-space explosions.
+                var main = surface.Particles.main;
+                Vector3 origin = main.simulationSpace == ParticleSystemSimulationSpace.Local ? r.transform.position :
+                    main.simulationSpace == ParticleSystemSimulationSpace.Custom && main.customSimulationSpace != null ? main.customSimulationSpace.position : Vector3.zero;
+                cmd.SetGlobalFloat("_BlindBodyHeat",surface.EffectHeat);
+                for (int sub=0; sub<Mathf.Min(surface.Materials.Length,surface.ParticleMesh.subMeshCount); sub++)
+                    if (surface.Materials[sub] != null)
+                        cmd.DrawMesh(surface.ParticleMesh,Matrix4x4.Translate(origin),surface.Materials[sub],sub,2);
             }
             // A narrow exhaust can be smaller than one pixel on the stock 360x240 screen.
             // Resolve its radiance as a bounded sensor footprint with full core brilliance.
-            cmd.SetGlobalFloat("_Effect",2);
+            cmd.SetGlobalFloat("_BlindEffect",2);
             foreach (var missile in burningMissiles)
             {
                 if (missile == null) continue;
@@ -397,7 +433,7 @@ namespace BLIND
                 float pixel = 2f * depth * Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad * 0.5f) / Mathf.Max(1,camera.pixelHeight);
                 float radius = Mathf.Clamp(length*0.18f,0.4f,1.8f);
                 float footprint = Mathf.Max(radius,pixel*1.2f);
-                cmd.SetGlobalFloat("_BodyHeat",3.2f);
+                cmd.SetGlobalFloat("_BlindBodyHeat",3.2f);
                 cmd.DrawMesh(exhaustQuad,Matrix4x4.TRS(nozzle,camera.transform.rotation,Vector3.one*footprint),screen,0,2);
             }
         }
@@ -405,12 +441,13 @@ namespace BLIND
         private static void DestroySurface(Surface surface)
         {
             foreach (var material in surface.Materials) if (material != null) UnityEngine.Object.Destroy(material);
+            if (surface.ParticleMesh != null) UnityEngine.Object.Destroy(surface.ParticleMesh);
         }
         public void Dispose()
         {
             SetCamera(null,SensorMode.Color);
             foreach (var surface in surfaces.Values) DestroySurface(surface);
-            surfaces.Clear(); bodies.Clear(); effects.Clear();
+            surfaces.Clear(); bodies.Clear(); effects.Clear(); activeMissiles.Clear();
             if (screen != null) UnityEngine.Object.Destroy(screen);
             if (exhaustQuad != null) UnityEngine.Object.Destroy(exhaustQuad);
             if (bundle != null) bundle.Unload(false);
@@ -445,11 +482,11 @@ namespace BLIND
                     RenderTargetIdentifier color = renderer.cameraColorTargetHandle.nameID;
                     float atmosphere = NetworkSceneSingleton<LevelInfo>.i == null ? 0 :
                         NetworkSceneSingleton<LevelInfo>.i.GetCloudOcclusion(owner.camera.transform.position);
-                    cmd.SetGlobalFloat("_Atmosphere",Mathf.Clamp01(atmosphere));
-                    cmd.SetGlobalFloat("_Span",owner.plugin.ThermalSpan.Value);
-                    cmd.SetGlobalFloat("_Noise",owner.plugin.ThermalNoise.Value);
-                    cmd.SetGlobalFloat("_WhiteHotCeiling",owner.plugin.WhiteHotCeiling.Value);
-                    cmd.SetGlobalFloat("_Mode",owner.mode == SensorMode.FlirIronbow ? 0 : owner.mode == SensorMode.FlirWhiteHot ? 1 : 2);
+                    cmd.SetGlobalFloat("_BlindAtmosphere",Mathf.Clamp01(atmosphere));
+                    cmd.SetGlobalFloat("_BlindSpan",owner.plugin.ThermalSpan.Value);
+                    cmd.SetGlobalFloat("_BlindNoise",owner.plugin.ThermalNoise.Value);
+                    cmd.SetGlobalFloat("_BlindWhiteHotCeiling",owner.plugin.WhiteHotCeiling.Value);
+                    cmd.SetGlobalFloat("_BlindMode",owner.mode == SensorMode.FlirIronbow ? 0 : owner.mode == SensorMode.FlirWhiteHot ? 1 : 2);
                     cmd.SetRenderTarget(HeatTarget);
                     cmd.ClearRenderTarget(true,true,Color.black);
                     cmd.Blit(color,HeatTarget,owner.screen,0);
@@ -503,15 +540,6 @@ namespace BLIND
                 ThermalRenderer.Active.activeMissiles.Add(__instance);
         }
     }
-    [HarmonyPatch(typeof(Missile), "OnDisable")]
-    internal static class ThermalMissileDisablePatch
-    {
-        private static void Postfix(Missile __instance)
-        {
-            if (ThermalRenderer.Active != null && __instance != null)
-                ThermalRenderer.Active.activeMissiles.Remove(__instance);
-        }
-    }
     [HarmonyPatch(typeof(Missile.Warhead), "Detonate")]
     internal static class ThermalExplosionPatch
     {
@@ -525,7 +553,7 @@ namespace BLIND
                 var method = instruction.operand as MethodInfo;
                 if (instruction.opcode == OpCodes.Call && method != null &&
                     method.DeclaringType == typeof(UnityEngine.Object) && method.Name == "Instantiate" &&
-                    method.ReturnType == typeof(GameObject))
+                    typeof(UnityEngine.Object).IsAssignableFrom(method.ReturnType))
                 {
                     yield return new CodeInstruction(OpCodes.Dup);
                     yield return new CodeInstruction(OpCodes.Call,register);
@@ -534,6 +562,8 @@ namespace BLIND
             }
             if (count > 0)
                 BlindPlugin.LogSource.LogInfo("[Thermal] Immediate explosion registration at " + count + " spawn sites.");
+            else
+                BlindPlugin.LogSource.LogWarning("[Thermal] Explosion spawn hook unavailable; using periodic effect discovery.");
         }
     }
 }

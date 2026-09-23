@@ -12,7 +12,7 @@ namespace BLIND
     {
         public const string PluginGuid = "ua.ncmod.blind";
         public const string PluginName = "B.L.I.N.D. - Best Luminescence & Infrared Navigation Device";
-        public const string PluginVersion = "0.4.1";
+        public const string PluginVersion = "0.4.2";
 
         internal static ManualLogSource LogSource;
         internal static BlindPlugin Instance;
@@ -66,8 +66,24 @@ namespace BLIND
             _runtime.Initialize(this);
 
             _harmony = new Harmony(PluginGuid);
-            _harmony.PatchAll(typeof(BlindPlugin).Assembly);
+            try { _harmony.PatchAll(typeof(BlindPlugin).Assembly); }
+            catch (System.Exception error)
+            {
+                // Never leave half of the rendering/gameplay patches installed after an API mismatch.
+                _harmony.UnpatchSelf();
+                _runtime.Shutdown();
+                _runtime.enabled = false;
+                Logger.LogError("BLIND initialization failed; its patches and sensor state were restored. " + error);
+                return;
+            }
             Logger.LogInfo(PluginName + " " + PluginVersion + " loaded for Nuclear Option 0.34.x.");
+#if BLIND_DIAGNOSTICS
+            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "--blind-render-test") >= 0)
+            {
+                Application.runInBackground = true;
+                gameObject.AddComponent<ThermalRuntimeProbe>();
+            }
+#endif
         }
 
         private void OnDestroy()

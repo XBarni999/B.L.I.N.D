@@ -35,13 +35,13 @@ public static class BuildThermal
             for (int i=0;i<heat.Length;i++) input.SetPixel(i,0,new Color(heat[i],heat[i],heat[i],1));
             input.filterMode=FilterMode.Point;
             input.Apply();
-            material.SetFloat("_Noise",0);
-            material.SetFloat("_Span",1.25f);
-            material.SetFloat("_WhiteHotCeiling",0.86f);
+            material.SetFloat("_BlindNoise",0);
+            material.SetFloat("_BlindSpan",1.25f);
+            material.SetFloat("_BlindWhiteHotCeiling",0.86f);
             Color[][] rows = new Color[3][];
             for (int mode=0;mode<3;mode++)
             {
-                material.SetFloat("_Mode",mode);
+                material.SetFloat("_BlindMode",mode);
                 Graphics.Blit(input,output,material,3);
                 RenderTexture.active=output;
                 readback.ReadPixels(new Rect(0,0,6,1),0,0);
@@ -56,10 +56,10 @@ public static class BuildThermal
             if (rows[1][5].r>=0.73f || rows[1][0].r>=0.03f) throw new System.Exception("White Hot background/highlight exceeds limit");
             if (rows[0][5].r<0.98f || rows[0][0].b<=rows[0][0].g) throw new System.Exception("Ironbow endpoints changed");
             // Ceiling changes must affect only White Hot.
-            material.SetFloat("_WhiteHotCeiling",0.5f);
+            material.SetFloat("_BlindWhiteHotCeiling",0.5f);
             foreach (int mode in new[] {0,2})
             {
-                material.SetFloat("_Mode",mode);
+                material.SetFloat("_BlindMode",mode);
                 Graphics.Blit(input,output,material,3);
                 RenderTexture.active=output;
                 readback.ReadPixels(new Rect(0,0,6,1),0,0);
