@@ -28,6 +28,7 @@ namespace BLIND
         private Material screen;
         private Mesh exhaustQuad;
         private readonly List<Missile> burningMissiles = new List<Missile>();
+        internal readonly HashSet<Missile> activeMissiles = new HashSet<Missile>();
         private Shader shader;
         private bool attempted, failed, loggedFrame;
         private float nextScan;
@@ -118,26 +119,10 @@ namespace BLIND
             if (Active != null) Active.RegisterEffect(root);
         }
 
-        internal void RegisterImmediateExplosion(Vector3 pos, float blastYield)
-        {
-            float radiusSq = Mathf.Max(600f, blastYield * 45f);
-            foreach (var r in UnityEngine.Object.FindObjectsOfType<ParticleSystemRenderer>())
-            {
-                if (r != null && (r.transform.position - pos).sqrMagnitude <= radiusSq)
-                    effects.Add(r);
-            }
-            foreach (var r in UnityEngine.Object.FindObjectsOfType<TrailRenderer>())
-            {
-                if (r != null && (r.transform.position - pos).sqrMagnitude <= radiusSq)
-                    effects.Add(r);
-            }
-        }
-
         private void Scan(float now)
         {
             if (now < nextScan) return;
-            nextScan = now + 0.25f;
-            // Discover effects with high responsiveness; explosions and trails register immediately.
+            nextScan = now + 1.5f; // Runs every 1.5 seconds - very lightweight
             foreach (var r in UnityEngine.Object.FindObjectsOfType<ParticleSystemRenderer>()) effects.Add(r);
             foreach (var r in UnityEngine.Object.FindObjectsOfType<TrailRenderer>()) effects.Add(r);
             deadBodies.Clear();
@@ -147,6 +132,7 @@ namespace BLIND
             foreach (var pair in surfaces) if (pair.Key == null) deadSurfaces.Add(pair.Key);
             foreach (var key in deadSurfaces) { DestroySurface(surfaces[key]); surfaces.Remove(key); }
             effects.RemoveWhere(r => r == null);
+            activeMissiles.RemoveWhere(m => m == null);
         }
 
         private Body GetBody(Unit unit, float now)
@@ -253,36 +239,57 @@ namespace BLIND
                 var original = originals[n];
                 if (original == null) continue;
                 var material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
-                string textureProperty = original.HasProperty("_BaseMap") ? "_BaseMap" : "_MainTex";
-                if (original.HasProperty(textureProperty))
+                Texture tex = null;
+                string texProp = original.HasProperty("_BaseMap") ? "_BaseMap" : (original.HasProperty("_MainTex") ? "_MainTex" : null);
+                if (texProp != null) tex = original.GetTexture(texProp);
+                if (tex != null)
                 {
-                    material.SetTexture("_DetailTex",original.GetTexture(textureProperty));
-                    material.SetTextureScale("_DetailTex",original.GetTextureScale(textureProperty));
-                    material.SetTextureOffset("_DetailTex",original.GetTextureOffset(textureProperty));
+                    material.SetTexture("_DetailTex", tex);
+                    material.SetTextureScale("_DetailTex", original.GetTextureScale(texProp));
+                    material.SetTextureOffset("_DetailTex", original.GetTextureOffset(texProp));
+                    material.SetFloat("_UseAlpha", 1f);
+                }
+                else
+                {
+                    material.SetFloat("_UseAlpha", 0f);
                 }
                 bool particle = r is ParticleSystemRenderer || r is TrailRenderer;
-                material.SetFloat("_UseAlpha", particle || original.IsKeywordEnabled("_ALPHATEST_ON") ? 1 : 0);
-                material.SetFloat("_Cutoff", particle ? 0.035f : (original.HasProperty("_Cutoff") ? original.GetFloat("_Cutoff") : 0.5f));
-                material.SetFloat("_DetailAmount",particle ? 0 : 0.10f);
+                material.SetFloat("_Cutoff", particle ? 0.05f : (original.HasProperty("_Cutoff") ? original.GetFloat("_Cutoff") : 0.5f));
+                material.SetFloat("_DetailAmount", particle ? 0 : 0.10f);
                 surface.Materials[n] = material;
                 name += " " + original.name.ToLowerInvariant();
             }
-            // Explosions, rocket plumes, missile trails, and flames radiate intense heat.
-            bool hot = name.Contains("fire") || name.Contains("flame") || name.Contains("explos") ||
-                       name.Contains("flash") || name.Contains("blast") || name.Contains("shrapnel") ||
-                       name.Contains("afterburn") || name.Contains("spark") || name.Contains("flare") ||
-                       name.Contains("missile") || name.Contains("rocket") || name.Contains("exhaust") ||
-                       name.Contains("thrust") || name.Contains("trail") || name.Contains("tracer");
 
-            bool warmSmoke = name.Contains("smoke") || name.Contains("plume");
-            bool pureCold = name.Contains("dust") || name.Contains("vapor") || name.Contains("contrail") || name.Contains("haze");
+            // Exclude cold non-thermal effects (shockwave rings, ground decals, dirt, dust, craters)
+            bool isNonThermal = name.Contains("shock") || name.Contains("wave") || name.Contains("distortion") ||
+                                name.Contains("refract") || name.Contains("decal") || name.Contains("ground") ||
+                                name.Contains("dirt") || name.Contains("dust") || name.Contains("rubble") ||
+                                name.Contains("debris") || name.Contains("crater");
 
-            if (hot) surface.EffectHeat = 3.2f;
-            else if (warmSmoke) surface.EffectHeat = 1.4f;
-            else if (pureCold) surface.EffectHeat = 0f;
-            else surface.EffectHeat = 0f;
+            if (isNonThermal)
+            {
+                surface.EffectHeat = 0f;
+                surfaces.Add(r, surface);
+                return surface;
+            }
 
-            surfaces.Add(r,surface);
+            bool isFlame = name.Contains("fire") || name.Contains("flame") || name.Contains("flash") ||
+                           name.Contains("fireball") || name.Contains("afterburn") || name.Contains("spark") ||
+                           name.Contains("flare") || name.Contains("tracer") || name.Contains("exhaust") ||
+                           name.Contains("thrust");
+
+            bool isMissileExhaust = name.Contains("missile") || name.Contains("rocket") || name.Contains("trail");
+
+            if (isFlame)
+                surface.EffectHeat = 2.4f;
+            else if (isMissileExhaust)
+                surface.EffectHeat = 2.0f;
+            else if (name.Contains("smoke") || name.Contains("plume"))
+                surface.EffectHeat = 0.35f;
+            else
+                surface.EffectHeat = 0f;
+
+            surfaces.Add(r, surface);
             return surface;
         }
 
@@ -290,13 +297,11 @@ namespace BLIND
         {
             if (r == null || !r.enabled || r.forceRenderingOff || !r.gameObject.activeInHierarchy ||
                 (camera.cullingMask & (1 << r.gameObject.layer)) == 0) return false;
-            if (r is ParticleSystemRenderer || r is TrailRenderer)
-            {
-                // Newly created particle systems may have uninitialized bounds centered at zero; protect them from false frustum culling.
-                Vector3 p = r.transform.position;
-                float d = Vector3.Dot(p - camera.transform.position, camera.transform.forward);
-                if (d > 0 && d < 25000f) return true;
-            }
+            Vector3 p = r.transform.position;
+            Vector3 toCam = p - camera.transform.position;
+            if (toCam.sqrMagnitude > 25000f * 25000f) return false;
+            if (Vector3.Dot(toCam, camera.transform.forward) < -5f) return false;
+            if (r is ParticleSystemRenderer || r is TrailRenderer) return true;
             return GeometryUtility.TestPlanesAABB(frustum, r.bounds);
         }
 
@@ -327,8 +332,8 @@ namespace BLIND
                         if (surface.Materials[sub] != null) cmd.DrawRenderer(r,surface.Materials[sub],sub,1);
                 }
             }
-            // Ensure any missiles newly launched in the scene (before async grid registration) are immediately tracked.
-            foreach (var m in UnityEngine.Object.FindObjectsOfType<Missile>())
+            // Track active registered missiles without any expensive full-scene searching
+            foreach (var m in activeMissiles)
             {
                 if (m != null && !m.disabled && m.gameObject.activeInHierarchy && m.EngineOn() && !burningMissiles.Contains(m))
                 {
@@ -377,8 +382,8 @@ namespace BLIND
                 if (depth <= camera.nearClipPlane || depth >= camera.farClipPlane) continue;
                 float pixel = 2f * depth * Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad * 0.5f) / Mathf.Max(1,camera.pixelHeight);
                 float radius = Mathf.Clamp(length*0.18f,0.4f,1.8f);
-                float footprint = Mathf.Max(radius,pixel*1.5f);
-                cmd.SetGlobalFloat("_BodyHeat",4.5f);
+                float footprint = Mathf.Max(radius,pixel*1.2f);
+                cmd.SetGlobalFloat("_BodyHeat",3.2f);
                 cmd.DrawMesh(exhaustQuad,Matrix4x4.TRS(nozzle,camera.transform.rotation,Vector3.one*footprint),screen,0,2);
             }
         }
@@ -483,22 +488,22 @@ namespace BLIND
             if (ThermalRenderer.Active != null) ThermalRenderer.Active.RegisterEffect(effect);
         }
     }
-    [HarmonyPatch(typeof(DamageEffects), "BlastFrag")]
-    internal static class ThermalDamageBlastPatch
+    [HarmonyPatch(typeof(Missile), "OnEnable")]
+    internal static class ThermalMissileEnablePatch
     {
-        private static void Postfix(float blastYield, Vector3 blastPosition)
+        private static void Postfix(Missile __instance)
         {
-            if (ThermalRenderer.Active != null)
-                ThermalRenderer.Active.RegisterImmediateExplosion(blastPosition, blastYield);
+            if (ThermalRenderer.Active != null && __instance != null)
+                ThermalRenderer.Active.activeMissiles.Add(__instance);
         }
     }
-    [HarmonyPatch(typeof(Missile.Warhead), "Detonate")]
-    internal static class ThermalDetonateImmediatePatch
+    [HarmonyPatch(typeof(Missile), "OnDisable")]
+    internal static class ThermalMissileDisablePatch
     {
-        private static void Postfix(Vector3 position, float blastYield)
+        private static void Postfix(Missile __instance)
         {
-            if (ThermalRenderer.Active != null)
-                ThermalRenderer.Active.RegisterImmediateExplosion(position, blastYield);
+            if (ThermalRenderer.Active != null && __instance != null)
+                ThermalRenderer.Active.activeMissiles.Remove(__instance);
         }
     }
     [HarmonyPatch(typeof(Missile.Warhead), "Detonate")]

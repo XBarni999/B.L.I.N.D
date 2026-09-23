@@ -55,9 +55,9 @@ Shader "Hidden/BLIND/Thermal"
             float facing = abs(dot(normalize(i.normal), normalize(_WorldSpaceCameraPos-i.world)));
             heat *= 1 + (textureDetail-0.5)*_DetailAmount + (facing-0.5)*0.08;
             if (_Effect > 0.5) {
-                float alpha = detail.a * i.color.a;
-                clip(alpha-0.02);
-                heat *= saturate(alpha * 1.8);
+                float alpha = (_UseAlpha > 0.5 ? detail.a : 1.0) * i.color.a;
+                clip(alpha - 0.06);
+                heat *= pow(saturate(alpha), 1.5);
             }
             float transmission = exp(-i.eye * (0.000016 + _Atmosphere*0.00010));
             return lerp(0.13, max(0.02,heat), transmission);
