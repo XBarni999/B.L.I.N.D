@@ -264,15 +264,12 @@ namespace BLIND
                 name += " " + original.name.ToLowerInvariant();
             }
 
-            // Exclude cold non-thermal effects (ground decals, craters, shockwaves, dirt, dust, ground flashes, optical billboards)
+            // Exclude cold non-thermal effects and square explosion billboards (shockwave rings, ground decals, dirt, dust, craters)
             bool isNonThermal = name.Contains("shock") || name.Contains("wave") || name.Contains("distortion") ||
-                                name.Contains("refract") || name.Contains("decal") || name.Contains("crater") ||
-                                name.Contains("scorch") || name.Contains("ground") || name.Contains("dirt") ||
-                                name.Contains("dust") || name.Contains("rubble") || name.Contains("debris") ||
-                                name.Contains("sand") || name.Contains("gravel") || name.Contains("vapor") ||
-                                name.Contains("contrail") || name.Contains("glow") || name.Contains("light") ||
-                                name.Contains("flash") || name.Contains("ring") || name.Contains("circle") ||
-                                name.Contains("floor") || name.Contains("terrain");
+                                name.Contains("refract") || name.Contains("decal") || name.Contains("ground") ||
+                                name.Contains("dirt") || name.Contains("dust") || name.Contains("rubble") ||
+                                name.Contains("debris") || name.Contains("crater") || name.Contains("billboard") ||
+                                name.Contains("smoke_ring") || name.Contains("quad") || name.Contains("ring");
 
             if (isNonThermal)
             {
@@ -281,21 +278,19 @@ namespace BLIND
                 return surface;
             }
 
-            // Real thermal emitters: explosions, fireballs, blasts, flames, rocket plumes
-            bool isExplosionOrFlame = name.Contains("fire") || name.Contains("flame") ||
-                                      name.Contains("fireball") || name.Contains("explos") || name.Contains("blast") ||
-                                      name.Contains("shrapnel") || name.Contains("afterburn") || name.Contains("spark") ||
-                                      name.Contains("flare") || name.Contains("tracer") || name.Contains("exhaust") ||
-                                      name.Contains("thrust");
+            bool isFlame = name.Contains("fire") || name.Contains("flame") || name.Contains("flash") ||
+                           name.Contains("fireball") || name.Contains("afterburn") || name.Contains("spark") ||
+                           name.Contains("flare") || name.Contains("tracer") || name.Contains("exhaust") ||
+                           name.Contains("thrust");
 
             bool isMissileExhaust = name.Contains("missile") || name.Contains("rocket") || name.Contains("trail");
 
-            if (isExplosionOrFlame)
-                surface.EffectHeat = 3.2f;
+            if (isFlame)
+                surface.EffectHeat = 2.4f;
             else if (isMissileExhaust)
-                surface.EffectHeat = 2.5f;
+                surface.EffectHeat = 2.0f;
             else if (name.Contains("smoke") || name.Contains("plume"))
-                surface.EffectHeat = 1.15f;
+                surface.EffectHeat = 0.35f;
             else
                 surface.EffectHeat = 0f;
 

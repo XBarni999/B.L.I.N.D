@@ -32,8 +32,8 @@ Shader "Hidden/BLIND/Thermal"
             float2 screenUV = i.screen.xy / i.screen.w;
             float raw = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, screenUV);
             float sceneEye = LinearEyeDepth(raw);
-            // Compare in eye-space: generous tolerance prevents Z-fighting artifacts against terrain
-            float depthTol = _Effect > 1.5 ? max(6.0, i.eye * 0.02) : (_Effect > 0.5 ? max(4.0, i.eye * 0.015) : max(0.25, i.eye * 0.00015));
+            // Compare in eye-space: generous tolerance for exhaust flare prevents clipping by missile body/fins.
+            float depthTol = _Effect > 1.5 ? max(6.0, i.eye * 0.02) : max(0.25, i.eye * 0.00015);
             clip(sceneEye + depthTol - i.eye);
             if (_Effect > 1.5) {
                 float2 p = i.uv * 2 - 1;
@@ -55,14 +55,15 @@ Shader "Hidden/BLIND/Thermal"
             float facing = abs(dot(normalize(i.normal), normalize(_WorldSpaceCameraPos-i.world)));
             heat *= 1 + (textureDetail-0.5)*_DetailAmount + (facing-0.5)*0.08;
             if (_Effect > 0.5) {
-                // Soft depth fade near terrain prevents ground edge flickering
-                float groundFade = saturate((sceneEye - i.eye + 3.0) / 3.0);
-                // For additive explosion textures where alpha is 1, RGB luminance defines flame shape.
-                float lum = dot(detail.rgb, float3(0.299, 0.587, 0.114));
-                float texAlpha = (_UseAlpha > 0.5) ? min(detail.a, max(detail.a * 0.15, lum * 2.2)) : lum;
-                float alpha = texAlpha * i.color.a * groundFade;
-                clip(alpha - 0.035);
-                heat *= pow(saturate(alpha), 1.2);
+                float alpha = (_UseAlpha > 0.5 ? detail.a : 1.0) * i.color.a;
+                // Clip near-transparent edge artifacts
+                clip(alpha - 0.08);
+                // Radial soft falloff for particle billboard quads
+                float2 uvCentered = abs(i.uv * 2.0 - 1.0);
+                float quadDist = dot(uvCentered, uvCentered);
+                clip(1.0 - quadDist * 0.95);
+                float radialFeather = saturate(1.0 - quadDist);
+                heat *= pow(saturate(alpha), 1.3) * pow(radialFeather, 0.75);
             }
             float transmission = exp(-i.eye * (0.000016 + _Atmosphere*0.00010));
             return lerp(0.09, max(0.02,heat), transmission);
@@ -71,9 +72,8 @@ Shader "Hidden/BLIND/Thermal"
             float depth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.uv);
             float distance = LinearEyeDepth(depth);
             float lum = dot(tex2D(_MainTex,i.uv).rgb,float3(0.2126,0.7152,0.0722));
-            // Background remains cool stable terrain; clamp visible lighting so explosion light flashes do not flicker ground.
-            lum = min(lum, 0.40);
-            float heat = 0.07 + 0.025 * saturate(log2(1 + max(0,lum)));
+            // Background remains cool terrain; compress visible lighting so cold ground stays distinct from warm vehicles.
+            float heat = 0.07 + 0.045 * saturate(log2(1 + max(0,lum)));
             if (distance > _ProjectionParams.z*0.98) heat = 0.035;
             return lerp(0.09,heat,exp(-distance*(0.000016+_Atmosphere*0.00010)));
         }
