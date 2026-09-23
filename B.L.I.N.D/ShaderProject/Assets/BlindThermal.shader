@@ -32,14 +32,14 @@ Shader "Hidden/BLIND/Thermal"
             float2 screenUV = i.screen.xy / i.screen.w;
             float raw = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, screenUV);
             float sceneEye = LinearEyeDepth(raw);
-            // Compare in eye-space: generous tolerance for exhaust, explosion fireballs, and rising smoke plumes prevents terrain clipping
-            float depthTol = _Effect > 1.5 ? max(12.0, i.eye * 0.03) : max(0.25, i.eye * 0.00015);
+            // Generous depth tolerance for effects prevents clipping
+            float depthTol = _Effect > 1.5 ? max(6.0, i.eye * 0.02) : (_Effect > 0.5 ? max(4.0, i.eye * 0.015) : max(0.25, i.eye * 0.00015));
             clip(sceneEye + depthTol - i.eye);
             if (_Effect > 1.5) {
                 float2 p = i.uv * 2 - 1;
                 float r2 = dot(p,p);
                 clip(1-r2);
-                float signal = 0.13 + max(0,_BodyHeat-0.13) * exp2(-r2*2.5);
+                float signal = 0.13 + max(0,_BodyHeat-0.13) * exp2(-r2*4);
                 return lerp(0.13,signal,exp(-i.eye*(0.000016+_Atmosphere*0.00010)));
             }
             float4 detail = tex2D(_DetailTex, i.uv);
@@ -55,8 +55,14 @@ Shader "Hidden/BLIND/Thermal"
             float facing = abs(dot(normalize(i.normal), normalize(_WorldSpaceCameraPos-i.world)));
             heat *= 1 + (textureDetail-0.5)*_DetailAmount + (facing-0.5)*0.08;
             if (_Effect > 0.5) {
-                float alpha = (_UseAlpha > 0.5 ? detail.a : 1.0) * i.color.a;
-                clip(alpha - 0.05);
+                // Soft depth fade near terrain eliminates Z-fighting and ground edge flickering
+                float groundFade = saturate((sceneEye - i.eye + 3.0) / 3.0);
+                // For smoke, detail.a is the shape alpha.
+                // For additive flames (where detail.a is 1.0), RGB luminance defines the flame contour.
+                float lum = dot(detail.rgb, float3(0.299, 0.587, 0.114));
+                float shapeAlpha = (_UseAlpha > 0.5) ? min(detail.a, max(detail.a * 0.15, lum * 2.2)) : lum;
+                float alpha = shapeAlpha * i.color.a * groundFade;
+                clip(alpha - 0.035);
                 heat *= pow(saturate(alpha), 1.2);
             }
             float transmission = exp(-i.eye * (0.000016 + _Atmosphere*0.00010));
@@ -67,12 +73,9 @@ Shader "Hidden/BLIND/Thermal"
             float distance = LinearEyeDepth(depth);
             float3 sceneColor = tex2D(_MainTex, i.uv).rgb;
             float lum = dot(sceneColor, float3(0.2126, 0.7152, 0.0722));
-            // Background remains cool terrain; stable response prevents flickering
-            float heat = 0.07 + 0.035 * saturate(log2(1 + max(0, min(lum, 0.5))));
-            // Intense visual fire/burns (HDR luminescence > 0.8) contribute natural heat
-            if (lum > 0.8) {
-                heat += saturate((lum - 0.8) * 0.35);
-            }
+            // Background remains cool terrain; clamp visible lighting so explosion light flashes do not flicker ground.
+            lum = min(lum, 0.40);
+            float heat = 0.07 + 0.025 * saturate(log2(1 + max(0, lum)));
             if (distance > _ProjectionParams.z * 0.98) heat = 0.035;
             return lerp(0.09, heat, exp(-distance * (0.000016 + _Atmosphere * 0.00010)));
         }

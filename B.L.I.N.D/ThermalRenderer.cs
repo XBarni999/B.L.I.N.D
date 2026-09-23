@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Reflection.Emit;
 using HarmonyLib;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -28,7 +29,6 @@ namespace BLIND
         private Mesh exhaustQuad;
         private readonly List<Missile> burningMissiles = new List<Missile>();
         internal readonly HashSet<Missile> activeMissiles = new HashSet<Missile>();
-        private readonly List<ExplosionEmitter> activeExplosions = new List<ExplosionEmitter>();
         private Shader shader;
         private bool attempted, failed, loggedFrame;
         private float nextScan;
@@ -48,14 +48,6 @@ namespace BLIND
             internal Material[] Materials;
             internal Material[] Originals;
             internal float EffectHeat;
-        }
-        private sealed class ExplosionEmitter
-        {
-            internal Vector3 Position;
-            internal float MaxRadius;
-            internal float Duration;
-            internal float StartTime;
-            internal float PeakHeat;
         }
 
         internal ThermalRenderer(BlindPlugin plugin)
@@ -118,39 +110,20 @@ namespace BLIND
         internal void RegisterEffect(GameObject root)
         {
             if (root == null) return;
-            // Trails only: procedural ParticleSystems are excluded to prevent billboard tearing/flickering
+            foreach (var r in root.GetComponentsInChildren<ParticleSystemRenderer>(true)) effects.Add(r);
             foreach (var r in root.GetComponentsInChildren<TrailRenderer>(true)) effects.Add(r);
         }
 
-        internal void AddExplosion(Vector3 position, float blastYield)
+        internal static void RegisterSpawnedEffect(GameObject root)
         {
-            float now = Time.time;
-            for (int i = 0; i < activeExplosions.Count; i++)
-            {
-                if (now - activeExplosions[i].StartTime < 0.2f &&
-                    (activeExplosions[i].Position - position).sqrMagnitude < 36f)
-                {
-                    activeExplosions[i].MaxRadius = Mathf.Max(activeExplosions[i].MaxRadius, Mathf.Clamp(Mathf.Pow(blastYield, 0.333f) * 6.5f, 16f, 110f));
-                    return;
-                }
-            }
-            if (blastYield <= 0) blastYield = 50f;
-            float duration = Mathf.Clamp(Mathf.Pow(blastYield, 0.28f) * 2.6f, 5.0f, 12.0f);
-            float maxRadius = Mathf.Clamp(Mathf.Pow(blastYield, 0.333f) * 6.5f, 16f, 110f);
-            activeExplosions.Add(new ExplosionEmitter
-            {
-                Position = position,
-                MaxRadius = maxRadius,
-                Duration = duration,
-                StartTime = now,
-                PeakHeat = 4.8f
-            });
+            if (Active != null) Active.RegisterEffect(root);
         }
 
         private void Scan(float now)
         {
             if (now < nextScan) return;
-            nextScan = now + 1.5f; // Lightweight 1.5 second interval
+            nextScan = now + 0.6f;
+            foreach (var r in UnityEngine.Object.FindObjectsOfType<ParticleSystemRenderer>()) effects.Add(r);
             foreach (var r in UnityEngine.Object.FindObjectsOfType<TrailRenderer>()) effects.Add(r);
             deadBodies.Clear();
             foreach (var pair in bodies) if (pair.Key == null) deadBodies.Add(pair.Key);
@@ -186,7 +159,7 @@ namespace BLIND
 
         private static float DesiredHeat(Unit unit)
         {
-            if (unit.disabled || unit.unitState == Unit.UnitState.Destroyed) return 0.55f;
+            if (unit.disabled || unit.unitState == Unit.UnitState.Destroyed) return 0.50f;
             if (unit is Building) return 0.22f;
             float heat = 0.38f;
             Aircraft aircraft = unit as Aircraft;
@@ -264,6 +237,7 @@ namespace BLIND
             if (surfaces.TryGetValue(r, out surface)) return surface;
             Material[] originals = r.sharedMaterials;
             surface = new Surface { Originals = originals, Materials = new Material[originals.Length] };
+            string name = r.name.ToLowerInvariant();
             for (int n=0; n<originals.Length; n++)
             {
                 var original = originals[n];
@@ -283,14 +257,46 @@ namespace BLIND
                 {
                     material.SetFloat("_UseAlpha", 0f);
                 }
-                bool isTrail = r is TrailRenderer;
-                material.SetFloat("_Cutoff", isTrail ? 0.05f : (original.HasProperty("_Cutoff") ? original.GetFloat("_Cutoff") : 0.5f));
-                material.SetFloat("_DetailAmount", isTrail ? 0 : 0.10f);
+                bool particle = r is ParticleSystemRenderer || r is TrailRenderer;
+                material.SetFloat("_Cutoff", particle ? 0.05f : (original.HasProperty("_Cutoff") ? original.GetFloat("_Cutoff") : 0.5f));
+                material.SetFloat("_DetailAmount", particle ? 0 : 0.10f);
                 surface.Materials[n] = material;
+                name += " " + original.name.ToLowerInvariant();
             }
 
-            if (r is TrailRenderer)
-                surface.EffectHeat = 1.15f;
+            // Exclude non-thermal and flat ground overlays that cause Z-fighting (ground decals, optical flashes, shockwaves)
+            bool isNonThermal = name.Contains("shock") || name.Contains("wave") || name.Contains("distortion") ||
+                                name.Contains("refract") || name.Contains("decal") || name.Contains("crater") ||
+                                name.Contains("scorch") || name.Contains("ground") || name.Contains("dirt") ||
+                                name.Contains("dust") || name.Contains("rubble") || name.Contains("debris") ||
+                                name.Contains("sand") || name.Contains("gravel") || name.Contains("vapor") ||
+                                name.Contains("contrail") || name.Contains("glow") || name.Contains("light") ||
+                                name.Contains("flash") || name.Contains("ring") || name.Contains("circle") ||
+                                name.Contains("floor") || name.Contains("terrain") || name.Contains("billboard") ||
+                                name.Contains("quad");
+
+            if (isNonThermal)
+            {
+                surface.EffectHeat = 0f;
+                surfaces.Add(r, surface);
+                return surface;
+            }
+
+            // Real thermal emitters: game explosion fireballs, flames, burning matter
+            bool isFlame = name.Contains("fire") || name.Contains("flame") || name.Contains("fireball") ||
+                           name.Contains("explos") || name.Contains("blast") || name.Contains("shrapnel") ||
+                           name.Contains("afterburn") || name.Contains("spark") || name.Contains("flare") ||
+                           name.Contains("tracer") || name.Contains("exhaust") || name.Contains("thrust");
+
+            bool isSmoke = name.Contains("smoke") || name.Contains("plume");
+            bool isMissileTrail = name.Contains("missile") || name.Contains("rocket") || name.Contains("trail");
+
+            if (isFlame)
+                surface.EffectHeat = 3.2f;
+            else if (isSmoke)
+                surface.EffectHeat = 1.35f;
+            else if (isMissileTrail)
+                surface.EffectHeat = 2.0f;
             else
                 surface.EffectHeat = 0f;
 
@@ -306,7 +312,7 @@ namespace BLIND
             Vector3 toCam = p - camera.transform.position;
             if (toCam.sqrMagnitude > 25000f * 25000f) return false;
             if (Vector3.Dot(toCam, camera.transform.forward) < -5f) return false;
-            if (r is TrailRenderer) return true;
+            if (r is ParticleSystemRenderer || r is TrailRenderer) return true;
             return GeometryUtility.TestPlanesAABB(frustum, r.bounds);
         }
 
@@ -332,7 +338,7 @@ namespace BLIND
                     foreach (var r in body.Renderers)
                     {
                         if (!Visible(r)) continue;
-                        if (r is TrailRenderer) { effects.Add(r); continue; }
+                        if (r is ParticleSystemRenderer || r is TrailRenderer) { effects.Add(r); continue; }
                         if (!(r is MeshRenderer) && !(r is SkinnedMeshRenderer)) continue;
                         var surface = GetSurface(r);
                         for (int sub=0; sub<surface.Materials.Length; sub++)
@@ -355,7 +361,7 @@ namespace BLIND
                         foreach (var r in body.Renderers)
                         {
                             if (!Visible(r)) continue;
-                            if (r is TrailRenderer) { effects.Add(r); continue; }
+                            if (r is ParticleSystemRenderer || r is TrailRenderer) { effects.Add(r); continue; }
                             if (!(r is MeshRenderer) && !(r is SkinnedMeshRenderer)) continue;
                             var surface = GetSurface(r);
                             for (int sub = 0; sub < surface.Materials.Length; sub++)
@@ -394,80 +400,6 @@ namespace BLIND
                 cmd.SetGlobalFloat("_BodyHeat",3.2f);
                 cmd.DrawMesh(exhaustQuad,Matrix4x4.TRS(nozzle,camera.transform.rotation,Vector3.one*footprint),screen,0,2);
             }
-            // Render physical thermal explosion fireballs and rising warm smoke plumes cleanly via radial Gaussian footprints
-            for (int i = activeExplosions.Count - 1; i >= 0; i--)
-            {
-                var exp = activeExplosions[i];
-                float elapsed = now - exp.StartTime;
-                if (elapsed >= exp.Duration)
-                {
-                    activeExplosions.RemoveAt(i);
-                    continue;
-                }
-                float progress = elapsed / exp.Duration;
-
-                // 1. Initial blazing fireball (lasts first 30% of total duration)
-                float fireballDuration = exp.Duration * 0.30f;
-                if (elapsed < fireballDuration)
-                {
-                    float fbProgress = elapsed / fireballDuration;
-                    float fbRadiusScale = fbProgress < 0.25f
-                        ? Mathf.Sin(fbProgress / 0.25f * Mathf.PI * 0.5f)
-                        : 1.0f + (fbProgress - 0.25f) * 0.30f;
-                    float fbRadius = exp.MaxRadius * fbRadiusScale;
-                    Vector3 fbPos = exp.Position + Vector3.up * (fbRadius * 0.35f);
-                    float fbDepth = Vector3.Dot(fbPos - camera.transform.position, camera.transform.forward);
-                    if (fbDepth > camera.nearClipPlane && fbDepth < camera.farClipPlane)
-                    {
-                        float fbHeat = Mathf.Lerp(exp.PeakHeat, 0.6f, Mathf.Pow(fbProgress, 0.65f));
-                        cmd.SetGlobalFloat("_BodyHeat", fbHeat);
-                        cmd.DrawMesh(exhaustQuad, Matrix4x4.TRS(fbPos, camera.transform.rotation, Vector3.one * fbRadius * 2f), screen, 0, 2);
-                    }
-                }
-
-                // 2. Rising warm smoke plume (crater, mid-column, and billowing top head)
-                // Puff 1: Crater / base smoke
-                float smoke1Heat = Mathf.Lerp(1.8f, 0.14f, Mathf.Pow(progress, 0.7f));
-                if (smoke1Heat > 0.15f)
-                {
-                    Vector3 s1Pos = exp.Position + Vector3.up * (2.0f + elapsed * 1.8f);
-                    float s1Radius = exp.MaxRadius * (0.65f + elapsed * 0.08f);
-                    float s1Depth = Vector3.Dot(s1Pos - camera.transform.position, camera.transform.forward);
-                    if (s1Depth > camera.nearClipPlane && s1Depth < camera.farClipPlane)
-                    {
-                        cmd.SetGlobalFloat("_BodyHeat", smoke1Heat);
-                        cmd.DrawMesh(exhaustQuad, Matrix4x4.TRS(s1Pos, camera.transform.rotation, Vector3.one * s1Radius * 2f), screen, 0, 2);
-                    }
-                }
-
-                // Puff 2: Mid rising thermal plume
-                float smoke2Heat = Mathf.Lerp(1.4f, 0.13f, Mathf.Pow(progress, 0.8f));
-                if (smoke2Heat > 0.14f)
-                {
-                    Vector3 s2Pos = exp.Position + Vector3.up * (4.0f + elapsed * 6.5f);
-                    float s2Radius = exp.MaxRadius * (0.75f + elapsed * 0.15f);
-                    float s2Depth = Vector3.Dot(s2Pos - camera.transform.position, camera.transform.forward);
-                    if (s2Depth > camera.nearClipPlane && s2Depth < camera.farClipPlane)
-                    {
-                        cmd.SetGlobalFloat("_BodyHeat", smoke2Heat);
-                        cmd.DrawMesh(exhaustQuad, Matrix4x4.TRS(s2Pos, camera.transform.rotation, Vector3.one * s2Radius * 2f), screen, 0, 2);
-                    }
-                }
-
-                // Puff 3: Top billowing thermal smoke head
-                float smoke3Heat = Mathf.Lerp(1.2f, 0.12f, Mathf.Pow(progress, 0.85f));
-                if (smoke3Heat > 0.13f)
-                {
-                    Vector3 s3Pos = exp.Position + Vector3.up * (6.0f + elapsed * 11.0f);
-                    float s3Radius = exp.MaxRadius * (0.85f + elapsed * 0.22f);
-                    float s3Depth = Vector3.Dot(s3Pos - camera.transform.position, camera.transform.forward);
-                    if (s3Depth > camera.nearClipPlane && s3Depth < camera.farClipPlane)
-                    {
-                        cmd.SetGlobalFloat("_BodyHeat", smoke3Heat);
-                        cmd.DrawMesh(exhaustQuad, Matrix4x4.TRS(s3Pos, camera.transform.rotation, Vector3.one * s3Radius * 2f), screen, 0, 2);
-                    }
-                }
-            }
         }
 
         private static void DestroySurface(Surface surface)
@@ -478,7 +410,7 @@ namespace BLIND
         {
             SetCamera(null,SensorMode.Color);
             foreach (var surface in surfaces.Values) DestroySurface(surface);
-            surfaces.Clear(); bodies.Clear(); effects.Clear(); activeExplosions.Clear();
+            surfaces.Clear(); bodies.Clear(); effects.Clear();
             if (screen != null) UnityEngine.Object.Destroy(screen);
             if (exhaustQuad != null) UnityEngine.Object.Destroy(exhaustQuad);
             if (bundle != null) bundle.Unload(false);
@@ -581,21 +513,27 @@ namespace BLIND
         }
     }
     [HarmonyPatch(typeof(Missile.Warhead), "Detonate")]
-    internal static class ThermalMissileDetonatePatch
+    internal static class ThermalExplosionPatch
     {
-        private static void Postfix(Vector3 position, float blastYield, bool armed)
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            if (armed && ThermalRenderer.Active != null)
-                ThermalRenderer.Active.AddExplosion(position, blastYield);
-        }
-    }
-    [HarmonyPatch(typeof(DamageEffects), "BlastFrag")]
-    internal static class ThermalDamageBlastPatch
-    {
-        private static void Postfix(float blastYield, Vector3 blastPosition)
-        {
-            if (ThermalRenderer.Active != null)
-                ThermalRenderer.Active.AddExplosion(blastPosition, blastYield);
+            var register = AccessTools.Method(typeof(ThermalRenderer),"RegisterSpawnedEffect");
+            int count = 0;
+            foreach (var instruction in instructions)
+            {
+                yield return instruction;
+                var method = instruction.operand as MethodInfo;
+                if (instruction.opcode == OpCodes.Call && method != null &&
+                    method.DeclaringType == typeof(UnityEngine.Object) && method.Name == "Instantiate" &&
+                    method.ReturnType == typeof(GameObject))
+                {
+                    yield return new CodeInstruction(OpCodes.Dup);
+                    yield return new CodeInstruction(OpCodes.Call,register);
+                    count++;
+                }
+            }
+            if (count > 0)
+                BlindPlugin.LogSource.LogInfo("[Thermal] Immediate explosion registration at " + count + " spawn sites.");
         }
     }
 }
