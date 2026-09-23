@@ -180,16 +180,16 @@ namespace BLIND
             }
             else if (unit is GroundVehicle)
             {
-                // Active ground units (AA, tanks, IFVs) run generators/engines continuously
-                heat = 0.45f + Mathf.Clamp01(unit.speed / 12f) * 0.25f;
+                // Active ground units (AA, missile launchers, tanks, IFVs) run generators and diesel/gas turbines continuously
+                heat = 0.58f + Mathf.Clamp01(unit.speed / 10f) * 0.30f;
             }
-            else if (unit is Ship) heat = 0.35f;
+            else if (unit is Ship) heat = 0.45f;
             else if (unit is Missile)
             {
                 Missile m = (Missile)unit;
                 heat = m.EngineOn() ? 1.8f : 0.65f;
             }
-            if (unit.unitState == Unit.UnitState.Damaged) heat += 0.12f;
+            if (unit.unitState == Unit.UnitState.Damaged) heat += 0.18f;
             return heat;
         }
 
@@ -206,7 +206,7 @@ namespace BLIND
                     if (source == null || source.transform == null || source.flare || source.intensity <= 0) continue;
                     if (count == positions.Length) break;
                     Vector3 p = source.transform.position;
-                    float power = Mathf.Clamp(Mathf.Log(1 + source.intensity) * 0.28f, 0.2f, 2.5f);
+                    float power = Mathf.Clamp(Mathf.Log(1 + source.intensity) * 0.35f, 0.3f, 3.0f);
                     Missile missile = unit as Missile;
                     if (missile != null && source.transform == unit.transform)
                         p -= unit.transform.forward * size * 0.35f;
@@ -225,12 +225,12 @@ namespace BLIND
                 powers[0] = new Vector4(3.8f, 0, 0, 0);
                 count++;
             }
-            // Ground vehicles without native IR emitters get a broad rear engine compartment.
+            // Ground vehicles without native IR emitters get an active engine compartment and generator signature.
             if (count == 0 && unit is GroundVehicle && !unit.disabled)
             {
                 Vector3 p = unit.transform.TransformPoint(new Vector3(0, size*0.10f, -size*0.25f));
-                positions[0] = new Vector4(p.x,p.y,p.z,Mathf.Clamp(size*0.25f,0.7f,2.5f));
-                powers[0] = new Vector4(Mathf.Max(0,body.Heat-0.2f)*1.7f,0,0,0);
+                positions[0] = new Vector4(p.x,p.y,p.z,Mathf.Clamp(size*0.28f,0.8f,3.0f));
+                powers[0] = new Vector4(Mathf.Max(0.2f, body.Heat - 0.15f) * 2.2f, 0, 0, 0);
             }
             cmd.SetGlobalVectorArray("_BlindHeatSources", positions);
             cmd.SetGlobalVectorArray("_BlindHeatPowers", powers);
@@ -264,7 +264,7 @@ namespace BLIND
                 bool particle = r is ParticleSystemRenderer || r is TrailRenderer;
                 material.SetFloat("_BlindUseAlpha", particle || original.IsKeywordEnabled("_ALPHATEST_ON") ? 1f : 0f);
                 material.SetFloat("_BlindCutoff", particle ? 0.05f : (original.HasProperty("_Cutoff") ? original.GetFloat("_Cutoff") : 0.5f));
-                material.SetFloat("_BlindDetailAmount", particle ? 0 : 0.10f);
+                material.SetFloat("_BlindDetailAmount", particle ? 0 : 0.22f);
                 surface.Materials[n] = material;
                 name += " " + original.name.ToLowerInvariant();
                 // Alpha-blended textures use alpha; additive textures use RGB as their shape.
@@ -294,9 +294,9 @@ namespace BLIND
 
             bool isSmoke = name.Contains("smoke") || name.Contains("plume");
             if (isSmoke)
-                surface.EffectHeat = 0.22f;
+                surface.EffectHeat = 0.35f;
             else if (isFlame)
-                surface.EffectHeat = 2.0f;
+                surface.EffectHeat = 3.5f;
             else
                 surface.EffectHeat = 0f;
 

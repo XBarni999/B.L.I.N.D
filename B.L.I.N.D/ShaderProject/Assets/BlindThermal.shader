@@ -44,14 +44,22 @@ Shader "Hidden/BLIND/Thermal"
             }
             float4 detail = tex2D(_BlindDetailTex, i.uv);
             if (_BlindEffect > 0.5) {
-                // No normal-based shading for particles: some stock streams contain no normals.
-                // Alpha/Additive masking has zero contribution outside the actual sprite.
-                float shape = lerp(detail.a, max(detail.r,max(detail.g,detail.b)),_BlindAdditiveShape);
-                float fade = saturate((sceneEye-i.eye) / 0.7);
-                float alpha = saturate(shape*i.color.a)*fade;
-                clip(alpha-0.002);
-                float signal = max(0,_BlindBodyHeat)*alpha;
-                return signal * exp(-i.eye*(0.000016+_BlindAtmosphere*0.00010));
+                // Smooth shape calculation respecting sprite alpha and RGB intensity
+                float shape = lerp(detail.a, max(detail.r, max(detail.g, detail.b)), _BlindAdditiveShape);
+                float fade = saturate((sceneEye - i.eye) / 1.2);
+                float alpha = saturate(shape * i.color.a) * fade;
+                clip(alpha - 0.003);
+
+                // Modulate heat signature by particle color luminosity:
+                // Burning fireball cores (bright yellow/orange/white) radiate maximum thermal energy,
+                // while cooling smoke edges blend softly into ambient temperature.
+                float particleLum = dot(i.color.rgb, float3(0.299, 0.587, 0.114));
+                float coreMod = lerp(0.35, 1.25, saturate(particleLum));
+                
+                // Soft edge falloff instead of flat billboard disk
+                float softAlpha = smoothstep(0.003, 0.45, alpha);
+                float signal = max(0, _BlindBodyHeat) * coreMod * softAlpha;
+                return signal * exp(-i.eye * (0.000016 + _BlindAtmosphere * 0.00010));
             }
             if (_BlindUseAlpha > 0.5) clip(detail.a - _BlindCutoff);
             float heat = _BlindBodyHeat;
@@ -60,52 +68,82 @@ Shader "Hidden/BLIND/Thermal"
                 float r = max(_BlindHeatSources[n].w, 0.05);
                 heat += _BlindHeatPowers[n].x * exp2(-dot(delta,delta) / (r*r) * 2.5);
             }
-            // Weak microstructure only: camouflage colour must not determine temperature.
+            // Rich mechanical and panel microstructure from texture
             float textureDetail = dot(detail.rgb, float3(0.2126,0.7152,0.0722));
             float3 safeNormal = i.normal * rsqrt(max(dot(i.normal,i.normal),0.0001));
             float facing = abs(dot(safeNormal, normalize(_WorldSpaceCameraPos-i.world)));
-            heat *= 1 + (textureDetail-0.5)*_BlindDetailAmount + (facing-0.5)*0.08;
+            // Top surfaces receive solar and sky radiation, underside remains cooler; geometric facets stand out in FLIR
+            float solarSky = safeNormal.y * 0.12;
+            heat *= 1.0 + (textureDetail-0.5)*_BlindDetailAmount + (facing-0.5)*0.10 + solarSky;
             float transmission = exp(-i.eye * (0.000016 + _BlindAtmosphere*0.00010));
-            return lerp(0.09, max(0.02,heat), transmission);
+            return lerp(0.085, max(0.02,heat), transmission);
         }
         float Background(v2f_img i):SV_Target {
             float depth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.uv);
             float distance = LinearEyeDepth(depth);
+            bool isSky = distance > _ProjectionParams.z * 0.98;
+            if (isSky) {
+                // Sky is cold deep space/atmosphere with subtle natural horizon warmth
+                float skyCold = 0.025 + 0.015 * saturate(1.0 - i.uv.y);
+                return skyCold;
+            }
             float3 sceneColor = tex2D(_MainTex, i.uv).rgb;
             float lum = dot(sceneColor, float3(0.2126, 0.7152, 0.0722));
-            // Background remains cool terrain; clamp visible lighting so explosion light flashes do not flicker ground.
-            lum = min(lum, 0.40);
-            float heat = 0.07 + 0.025 * saturate(log2(1 + max(0, lum)));
-            if (distance > _ProjectionParams.z * 0.98) heat = 0.035;
-            return lerp(0.09, heat, exp(-distance * (0.000016 + _BlindAtmosphere * 0.00010)));
+            // Filmic rational compression: prevents sunlit concrete runways, bridge decks and buildings from blinding the FLIR sensor
+            float compressedLum = lum / (1.0 + lum * 3.2);
+            float terrainHeat = 0.045 + compressedLum * 0.11;
+
+            // Authentic vanilla explosion response: intense visual fireballs and flashes (HDR lum > 0.65)
+            // contribute rich, hot radiant heat without artificial sprite cutout artifacts.
+            float explosionBloom = saturate((lum - 0.65) * 1.8);
+            terrainHeat += explosionBloom * 1.85;
+
+            // Distant terrain fades toward ambient atmospheric temperature while preserving horizon contrast against the cold sky
+            return lerp(0.065, terrainHeat, exp(-distance * (0.000018 + _BlindAtmosphere * 0.00010)));
         }
         float3 Iron(float t) {
-            float3 a=float3(0.015,0.008,0.025), b=float3(0.19,0.025,0.33);
-            float3 c=float3(0.63,0.055,0.30), d=float3(0.96,0.32,0.025);
+            float3 a=float3(0.012,0.006,0.022), b=float3(0.18,0.020,0.30);
+            float3 c=float3(0.60,0.050,0.28), d=float3(0.96,0.30,0.020);
             float3 e=float3(1,0.78,0.17), f=float3(1,0.985,0.89);
-            if(t<0.22) return lerp(a,b,t/0.22);
-            if(t<0.46) return lerp(b,c,(t-0.22)/0.24);
-            if(t<0.68) return lerp(c,d,(t-0.46)/0.22);
-            if(t<0.88) return lerp(d,e,(t-0.68)/0.20);
+            if(t<0.26) return lerp(a,b,t/0.26);
+            if(t<0.48) return lerp(b,c,(t-0.26)/0.22);
+            if(t<0.70) return lerp(c,d,(t-0.48)/0.22);
+            if(t<0.88) return lerp(d,e,(t-0.70)/0.18);
             return lerp(e,f,(t-0.88)/0.12);
         }
         float4 Palette(v2f_img i):SV_Target {
-            float heat=tex2D(_MainTex,i.uv).r;
-            // Enhanced contrast mapping separating cold background (~0.07-0.10) from warm vehicles (0.35-0.70)
-            float t=saturate(log2(1+max(0,heat-0.03)*3.5)/log2(1+max(0.2,_BlindSpan)*3.5));
-            float noise=frac(sin(dot(floor(i.uv*_MainTex_TexelSize.zw),float2(12.9898,78.233))+floor(_Time.y*24))*43758.5453)-0.5;
-            t=saturate(t+noise*_BlindNoise);
+            float heat = tex2D(_MainTex, i.uv).r;
 
-            // Independent shoulder preserves hot detail beyond the Ironbow clipping point.
-            float whiteSignal = 1-exp(-max(0,heat-0.035)/max(0.2,_BlindSpan)*1.8);
-            float whiteHot = _BlindWhiteHotCeiling * saturate(pow(whiteSignal,0.85)+noise*_BlindNoise);
+            // Tactical Digital Detail Enhancement (DDE): unsharp high frequencies bring out vehicle edges and terrain contours
+            float2 off = _MainTex_TexelSize.xy * 0.8;
+            float localAvg = (tex2D(_MainTex, i.uv + float2(off.x, 0)).r +
+                              tex2D(_MainTex, i.uv - float2(off.x, 0)).r +
+                              tex2D(_MainTex, i.uv + float2(0, off.y)).r +
+                              tex2D(_MainTex, i.uv - float2(0, off.y)).r) * 0.25;
+            float edge = heat - localAvg;
+            float enhancedHeat = max(0.01, heat + edge * 0.32);
 
-            // Black Hot: clear tactical contrast where hot vehicles stand out as deep black silhouettes against clean light ground
-            float blackHot = saturate(lerp(0.85, 0.02, pow(saturate((t - 0.05) / 0.88), 0.80)) - noise*_BlindNoise);
+            // Normalized thermal signal mapping: background sits below 0.15, military targets start at 0.50+
+            float span = max(0.2, _BlindSpan);
+            float t = saturate(log2(1 + max(0, enhancedHeat - 0.035) * 3.2) / log2(1 + span * 3.2));
 
-            float3 rgb = _BlindMode<0.5 ? Iron(t) : (_BlindMode<1.5 ? whiteHot.xxx : blackHot.xxx);
-            // URP target is linear; palettes above are defined in display space.
-            return float4(GammaToLinearSpace(rgb),1);
+            // Authentic electro-optical sensor detector noise and subtle MFD scan raster
+            float noise = frac(sin(dot(floor(i.uv*_MainTex_TexelSize.zw), float2(12.9898,78.233)) + floor(_Time.y*24))*43758.5453) - 0.5;
+            float scanRaster = (fmod(floor(i.uv.y * _MainTex_TexelSize.w), 2.0) - 0.5) * 0.010;
+            t = saturate(t + noise * _BlindNoise + scanRaster);
+
+            // White Hot: clear target separation from background; cold background/buildings remain dark gray (0.05-0.12), military targets stand out bright (0.55+), engine cores glow brilliantly
+            float whiteNormalized = saturate((enhancedHeat - 0.045) / (span * 0.90));
+            float whiteCurve = saturate(pow(whiteNormalized, 0.85) * 0.95 + whiteNormalized * 0.05);
+            float whiteHighlight = 1.0 - exp(-max(0, enhancedHeat - 0.045) / span * 2.2);
+            float whiteHot = _BlindWhiteHotCeiling * saturate(lerp(whiteCurve, whiteHighlight, saturate((enhancedHeat - 0.40) / 0.7)) + noise * _BlindNoise);
+
+            // Black Hot: clean bright terrain/buildings with visible relief, military targets appear as deep dark silhouettes with pitch black hot engine cores
+            float blackHot = saturate(lerp(0.85, 0.02, pow(saturate((enhancedHeat - 0.040) / (span * 0.90)), 0.85)) - noise * _BlindNoise);
+
+            float3 rgb = _BlindMode < 0.5 ? Iron(t) : (_BlindMode < 1.5 ? whiteHot.xxx : blackHot.xxx);
+            // Cockpit display linear space target
+            return float4(GammaToLinearSpace(rgb), 1);
         }
         ENDHLSL
         Pass {

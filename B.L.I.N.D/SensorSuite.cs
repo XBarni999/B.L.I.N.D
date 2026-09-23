@@ -224,8 +224,8 @@ namespace BLIND
                     ambient = NetworkSceneSingleton<LevelInfo>.i.GetAmbientLight();
                 }
                 float dayBlind = Mathf.InverseLerp(0.32f, 0.65f, ambient);
-                _color.postExposure.value = Mathf.Lerp(2.2f, 8f, dayBlind);
-                _color.contrast.value = Mathf.Lerp(18f, -30f, dayBlind);
+                _color.postExposure.value = Mathf.Lerp(2.2f, 3.8f, dayBlind);
+                _color.contrast.value = Mathf.Lerp(18f, -12f, dayBlind);
                 _color.saturation.value = -72f;
                 _color.colorFilter.value = new Color(0.48f, 1f, 0.56f, 1f);
                 _lookup.active = false;
