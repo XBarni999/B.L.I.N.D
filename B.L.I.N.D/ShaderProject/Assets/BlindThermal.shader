@@ -32,7 +32,7 @@ Shader "Hidden/BLIND/Thermal"
             float2 screenUV = i.screen.xy / i.screen.w;
             float raw = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, screenUV);
             float sceneEye = LinearEyeDepth(raw);
-            // Compare in eye-space: generous tolerance for exhaust flare prevents clipping by missile body/fins.
+            // Compare in eye-space: generous tolerance for exhaust and explosion fireballs prevents clipping
             float depthTol = _Effect > 1.5 ? max(6.0, i.eye * 0.02) : max(0.25, i.eye * 0.00015);
             clip(sceneEye + depthTol - i.eye);
             if (_Effect > 1.5) {
@@ -56,14 +56,8 @@ Shader "Hidden/BLIND/Thermal"
             heat *= 1 + (textureDetail-0.5)*_DetailAmount + (facing-0.5)*0.08;
             if (_Effect > 0.5) {
                 float alpha = (_UseAlpha > 0.5 ? detail.a : 1.0) * i.color.a;
-                // Clip near-transparent edge artifacts
-                clip(alpha - 0.08);
-                // Radial soft falloff for particle billboard quads
-                float2 uvCentered = abs(i.uv * 2.0 - 1.0);
-                float quadDist = dot(uvCentered, uvCentered);
-                clip(1.0 - quadDist * 0.95);
-                float radialFeather = saturate(1.0 - quadDist);
-                heat *= pow(saturate(alpha), 1.3) * pow(radialFeather, 0.75);
+                clip(alpha - 0.05);
+                heat *= pow(saturate(alpha), 1.2);
             }
             float transmission = exp(-i.eye * (0.000016 + _Atmosphere*0.00010));
             return lerp(0.09, max(0.02,heat), transmission);
@@ -71,11 +65,16 @@ Shader "Hidden/BLIND/Thermal"
         float Background(v2f_img i):SV_Target {
             float depth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.uv);
             float distance = LinearEyeDepth(depth);
-            float lum = dot(tex2D(_MainTex,i.uv).rgb,float3(0.2126,0.7152,0.0722));
-            // Background remains cool terrain; compress visible lighting so cold ground stays distinct from warm vehicles.
-            float heat = 0.07 + 0.045 * saturate(log2(1 + max(0,lum)));
-            if (distance > _ProjectionParams.z*0.98) heat = 0.035;
-            return lerp(0.09,heat,exp(-distance*(0.000016+_Atmosphere*0.00010)));
+            float3 sceneColor = tex2D(_MainTex, i.uv).rgb;
+            float lum = dot(sceneColor, float3(0.2126, 0.7152, 0.0722));
+            // Background remains cool terrain; stable response prevents flickering
+            float heat = 0.07 + 0.035 * saturate(log2(1 + max(0, min(lum, 0.5))));
+            // Intense visual fire/burns (HDR luminescence > 0.8) contribute natural heat
+            if (lum > 0.8) {
+                heat += saturate((lum - 0.8) * 0.35);
+            }
+            if (distance > _ProjectionParams.z * 0.98) heat = 0.035;
+            return lerp(0.09, heat, exp(-distance * (0.000016 + _Atmosphere * 0.00010)));
         }
         float3 Iron(float t) {
             float3 a=float3(0.015,0.008,0.025), b=float3(0.19,0.025,0.33);
