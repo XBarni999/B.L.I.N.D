@@ -127,23 +127,23 @@ namespace BLIND
             float now = Time.time;
             for (int i = 0; i < activeExplosions.Count; i++)
             {
-                if (now - activeExplosions[i].StartTime < 0.15f &&
-                    (activeExplosions[i].Position - position).sqrMagnitude < 25f)
+                if (now - activeExplosions[i].StartTime < 0.2f &&
+                    (activeExplosions[i].Position - position).sqrMagnitude < 36f)
                 {
-                    activeExplosions[i].MaxRadius = Mathf.Max(activeExplosions[i].MaxRadius, Mathf.Clamp(Mathf.Pow(blastYield, 0.333f) * 3.5f, 5f, 80f));
+                    activeExplosions[i].MaxRadius = Mathf.Max(activeExplosions[i].MaxRadius, Mathf.Clamp(Mathf.Pow(blastYield, 0.333f) * 6.5f, 16f, 110f));
                     return;
                 }
             }
             if (blastYield <= 0) blastYield = 50f;
-            float duration = Mathf.Clamp(Mathf.Pow(blastYield, 0.28f) * 0.9f, 1.5f, 4.5f);
-            float maxRadius = Mathf.Clamp(Mathf.Pow(blastYield, 0.333f) * 3.5f, 5f, 80f);
+            float duration = Mathf.Clamp(Mathf.Pow(blastYield, 0.28f) * 2.6f, 5.0f, 12.0f);
+            float maxRadius = Mathf.Clamp(Mathf.Pow(blastYield, 0.333f) * 6.5f, 16f, 110f);
             activeExplosions.Add(new ExplosionEmitter
             {
                 Position = position,
                 MaxRadius = maxRadius,
                 Duration = duration,
                 StartTime = now,
-                PeakHeat = 3.8f
+                PeakHeat = 4.8f
             });
         }
 
@@ -186,7 +186,7 @@ namespace BLIND
 
         private static float DesiredHeat(Unit unit)
         {
-            if (unit.disabled || unit.unitState == Unit.UnitState.Destroyed) return 0.17f;
+            if (unit.disabled || unit.unitState == Unit.UnitState.Destroyed) return 0.55f;
             if (unit is Building) return 0.22f;
             float heat = 0.38f;
             Aircraft aircraft = unit as Aircraft;
@@ -394,7 +394,7 @@ namespace BLIND
                 cmd.SetGlobalFloat("_BodyHeat",3.2f);
                 cmd.DrawMesh(exhaustQuad,Matrix4x4.TRS(nozzle,camera.transform.rotation,Vector3.one*footprint),screen,0,2);
             }
-            // Render physical thermal explosion fireballs cleanly via radial Gaussian footprints
+            // Render physical thermal explosion fireballs and rising warm smoke plumes cleanly via radial Gaussian footprints
             for (int i = activeExplosions.Count - 1; i >= 0; i--)
             {
                 var exp = activeExplosions[i];
@@ -405,16 +405,68 @@ namespace BLIND
                     continue;
                 }
                 float progress = elapsed / exp.Duration;
-                // Fast bloom in first 20% of duration, then smooth expansion and decay
-                float radiusScale = progress < 0.2f
-                    ? Mathf.Sin(progress / 0.2f * Mathf.PI * 0.5f)
-                    : 1.0f + (progress - 0.2f) * 0.35f;
-                float currentRadius = exp.MaxRadius * radiusScale;
-                float depth = Vector3.Dot(exp.Position - camera.transform.position, camera.transform.forward);
-                if (depth <= camera.nearClipPlane || depth >= camera.farClipPlane) continue;
-                float currentHeat = Mathf.Lerp(exp.PeakHeat, 0.12f, Mathf.Pow(progress, 0.7f));
-                cmd.SetGlobalFloat("_BodyHeat", currentHeat);
-                cmd.DrawMesh(exhaustQuad, Matrix4x4.TRS(exp.Position, camera.transform.rotation, Vector3.one * currentRadius * 2f), screen, 0, 2);
+
+                // 1. Initial blazing fireball (lasts first 30% of total duration)
+                float fireballDuration = exp.Duration * 0.30f;
+                if (elapsed < fireballDuration)
+                {
+                    float fbProgress = elapsed / fireballDuration;
+                    float fbRadiusScale = fbProgress < 0.25f
+                        ? Mathf.Sin(fbProgress / 0.25f * Mathf.PI * 0.5f)
+                        : 1.0f + (fbProgress - 0.25f) * 0.30f;
+                    float fbRadius = exp.MaxRadius * fbRadiusScale;
+                    Vector3 fbPos = exp.Position + Vector3.up * (fbRadius * 0.35f);
+                    float fbDepth = Vector3.Dot(fbPos - camera.transform.position, camera.transform.forward);
+                    if (fbDepth > camera.nearClipPlane && fbDepth < camera.farClipPlane)
+                    {
+                        float fbHeat = Mathf.Lerp(exp.PeakHeat, 0.6f, Mathf.Pow(fbProgress, 0.65f));
+                        cmd.SetGlobalFloat("_BodyHeat", fbHeat);
+                        cmd.DrawMesh(exhaustQuad, Matrix4x4.TRS(fbPos, camera.transform.rotation, Vector3.one * fbRadius * 2f), screen, 0, 2);
+                    }
+                }
+
+                // 2. Rising warm smoke plume (crater, mid-column, and billowing top head)
+                // Puff 1: Crater / base smoke
+                float smoke1Heat = Mathf.Lerp(1.8f, 0.14f, Mathf.Pow(progress, 0.7f));
+                if (smoke1Heat > 0.15f)
+                {
+                    Vector3 s1Pos = exp.Position + Vector3.up * (2.0f + elapsed * 1.8f);
+                    float s1Radius = exp.MaxRadius * (0.65f + elapsed * 0.08f);
+                    float s1Depth = Vector3.Dot(s1Pos - camera.transform.position, camera.transform.forward);
+                    if (s1Depth > camera.nearClipPlane && s1Depth < camera.farClipPlane)
+                    {
+                        cmd.SetGlobalFloat("_BodyHeat", smoke1Heat);
+                        cmd.DrawMesh(exhaustQuad, Matrix4x4.TRS(s1Pos, camera.transform.rotation, Vector3.one * s1Radius * 2f), screen, 0, 2);
+                    }
+                }
+
+                // Puff 2: Mid rising thermal plume
+                float smoke2Heat = Mathf.Lerp(1.4f, 0.13f, Mathf.Pow(progress, 0.8f));
+                if (smoke2Heat > 0.14f)
+                {
+                    Vector3 s2Pos = exp.Position + Vector3.up * (4.0f + elapsed * 6.5f);
+                    float s2Radius = exp.MaxRadius * (0.75f + elapsed * 0.15f);
+                    float s2Depth = Vector3.Dot(s2Pos - camera.transform.position, camera.transform.forward);
+                    if (s2Depth > camera.nearClipPlane && s2Depth < camera.farClipPlane)
+                    {
+                        cmd.SetGlobalFloat("_BodyHeat", smoke2Heat);
+                        cmd.DrawMesh(exhaustQuad, Matrix4x4.TRS(s2Pos, camera.transform.rotation, Vector3.one * s2Radius * 2f), screen, 0, 2);
+                    }
+                }
+
+                // Puff 3: Top billowing thermal smoke head
+                float smoke3Heat = Mathf.Lerp(1.2f, 0.12f, Mathf.Pow(progress, 0.85f));
+                if (smoke3Heat > 0.13f)
+                {
+                    Vector3 s3Pos = exp.Position + Vector3.up * (6.0f + elapsed * 11.0f);
+                    float s3Radius = exp.MaxRadius * (0.85f + elapsed * 0.22f);
+                    float s3Depth = Vector3.Dot(s3Pos - camera.transform.position, camera.transform.forward);
+                    if (s3Depth > camera.nearClipPlane && s3Depth < camera.farClipPlane)
+                    {
+                        cmd.SetGlobalFloat("_BodyHeat", smoke3Heat);
+                        cmd.DrawMesh(exhaustQuad, Matrix4x4.TRS(s3Pos, camera.transform.rotation, Vector3.one * s3Radius * 2f), screen, 0, 2);
+                    }
+                }
             }
         }
 

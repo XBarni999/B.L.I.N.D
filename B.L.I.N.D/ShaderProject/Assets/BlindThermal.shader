@@ -32,14 +32,14 @@ Shader "Hidden/BLIND/Thermal"
             float2 screenUV = i.screen.xy / i.screen.w;
             float raw = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, screenUV);
             float sceneEye = LinearEyeDepth(raw);
-            // Compare in eye-space: generous tolerance for exhaust and explosion fireballs prevents clipping
-            float depthTol = _Effect > 1.5 ? max(6.0, i.eye * 0.02) : max(0.25, i.eye * 0.00015);
+            // Compare in eye-space: generous tolerance for exhaust, explosion fireballs, and rising smoke plumes prevents terrain clipping
+            float depthTol = _Effect > 1.5 ? max(12.0, i.eye * 0.03) : max(0.25, i.eye * 0.00015);
             clip(sceneEye + depthTol - i.eye);
             if (_Effect > 1.5) {
                 float2 p = i.uv * 2 - 1;
                 float r2 = dot(p,p);
                 clip(1-r2);
-                float signal = 0.13 + max(0,_BodyHeat-0.13) * exp2(-r2*4);
+                float signal = 0.13 + max(0,_BodyHeat-0.13) * exp2(-r2*2.5);
                 return lerp(0.13,signal,exp(-i.eye*(0.000016+_Atmosphere*0.00010)));
             }
             float4 detail = tex2D(_DetailTex, i.uv);
