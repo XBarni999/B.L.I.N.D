@@ -1,102 +1,89 @@
 # B.L.I.N.D. (Best Luminescence & Infrared Navigation Device)
 
-**B.L.I.N.D.** is a high-fidelity FLIR (Forward Looking Infrared) and JTAC (Joint Terminal Attack Controller) targeting pod enhancement mod for **Nuclear Option** (v0.34.x).
+[![Release](https://img.shields.io/github/v/release/XBarni999/B.L.I.N.D?style=flat-square)](https://github.com/XBarni999/B.L.I.N.D/releases)
+[![Game Version](https://img.shields.io/badge/Nuclear%20Option-v0.34.x-blue?style=flat-square)](https://store.steampowered.com/app/2168680/Nuclear_Option/)
 
-It upgrades the cockpit target camera (`TargetCam`) with realistic physical thermal imaging, NVG night vision optics, and automated JTAC ground-designation mechanics for laser-guided munitions.
+**B.L.I.N.D.** is a high-fidelity FLIR (Forward Looking Infrared) targeting pod and automated JTAC (Joint Terminal Attack Controller) enhancement mod for **Nuclear Option**.
 
----
-
-## 🇺🇦 Інструкція для гравців (Ukrainian)
-
-### Основні можливості:
-1. **Реалістичний тепловізор (FLIR) у прицільному контейнері літака:**
-   - Працює безпосередньо в екрані `TargetCam` у кабіні, не ламаючи графіку світу та освітлення.
-   - **FLIR IRONBOW** — класична кольорова спектральна теплова палітра (від холодного фіолетового/чорного до яскраво-жовтого/білого на гарячих точках).
-   - **FLIR WHITE HOT** — монохромний білий режим (гарячі об'єкти та техніка світяться білим, з м'яким балансом щоб не сліпити очі).
-   - **FLIR BLACK HOT** — зворотний монохромний чорний режим (гарячі цілі та вихлопи виділяються контрастним темним силуетом).
-   - **NVG (ПНБ)** — режим нічного бачення з характерним зеленим фосфорним світінням, зернистістю та реакцією на денне світло.
-2. **Динамічне тепловиділення:**
-   - Двигуни техніки та літаків гріються від обертів (RPM), швидкості та пошкоджень.
-   - Ракети чітко видно в тепловізорі під час роботи ракетного двигуна та розгону.
-   - Вибухи, вогнища та полум'я мають плавне згасання тепла без прямокутних артефактів.
-3. **Система наведення JTAC (Союзне лазерне цілевказання):**
-   - Союзні наземні війська (БМП, танки, спостережні пункти) можуть підсвічувати лазером наземні цілі противника на відстані до 4 км.
-   - Ви отримуєте сповіщення на ІЛС (`LGB TGT ACQ`), дальність та зелений маркер цілі, якщо ви перебуваєте в радіусі до 15 км.
-   - Керовані бомби та ракети з лазерною ГСН самостійно захоплюють підсвітку союзного JTAC, дозволяючи скидати боєприпаси без необхідності самостійно супроводжувати ціль носом літака.
-
-### Керування:
-- **`F7`** — перемикання режимів прицільного контейнера:
-  `COLOR` ➔ `FLIR IRONBOW` ➔ `FLIR WHITE HOT` ➔ `FLIR BLACK HOT` ➔ `NVG`
-  *(Клавішу можна перепризначити в налаштуваннях BepInEx)*.
-
-### Встановлення:
-1. Переконайтеся, що у вас встановлено **BepInEx 5** для Nuclear Option.
-2. Скопіюйте обидва файли:
-   - `BLIND.dll`
-   - `blind-thermal.bundle`
-   до вашої папки `Nuclear Option/BepInEx/plugins/`.
-3. Запустіть гру. При першому запуску створиться конфігураційний файл `BepInEx/config/ua.ncmod.blind.cfg`.
+It overhauls the cockpit target camera (`TargetCam`) with physically-inspired thermal imaging, night-vision optics, and network datalink ground-designation for laser-guided ordnance.
 
 ---
 
-## 🇬🇧 Player Guide (English)
+## ✨ Features
 
-### Key Features:
-1. **Targeting Pod FLIR & Optic Modes:**
-   - Isolated cockpit target camera rendering with zero degradation to main world lighting or cockpit gauges.
-   - **FLIR IRONBOW**: False-color gradient (cold purple/black to blazing red/orange/yellow/white).
-   - **FLIR WHITE HOT**: Optimized monochrome imaging where hot engine bays, active exhausts, and fires glow white with soft highlight roll-off.
-   - **FLIR BLACK HOT**: Inverted monochrome contrast where heat sources appear as distinct dark silhouettes.
-   - **NVG (Night Vision)**: Green phosphor night-vision with film grain, bloom, and realistic day overexposure penalty.
-2. **Dynamic Thermal Signatures:**
-   - Vehicle and aircraft bodies heat up with throttle/RPM, movement, and combat damage.
-   - Rocket plumes, missile motors, and detonations produce authentic infrared blooms with smooth alpha dissipation.
-3. **JTAC Target Designation System:**
-   - Friendly ground armor and outpost units detect and designate enemy vehicles/structures within line-of-sight (up to 4 km).
-   - Local aircraft receive datalink cues (`LGB TGT ACQ` on HUD) within a 15 km network bubble.
-   - Stock laser-guided weapons lock onto JTAC-designated lasers seamlessly.
+### 1. Advanced Targeting Pod Sensor Optics
+* **Isolated Cockpit Display**: Custom URP post-processing render pipeline running strictly on the aircraft target camera. Does not modify cockpit cockpit dials, canopy glass, or external world lighting.
+* **FLIR IRONBOW**: Full false-color spectrum palette (deep purple/black cold background gradating up through vibrant red, orange, and blinding white-hot thermal cores).
+* **FLIR WHITE HOT**: Clean monochrome thermal imaging where hot engine cowlings, vehicle exhausts, and friction glow white with soft highlight roll-off to avoid eye fatigue.
+* **FLIR BLACK HOT**: Direct inverse monochrome gradient where heat sources appear as distinct, crisp dark silhouettes.
+* **NVG (Night Vision)**: Green phosphor night-vision enhancement with authentic film grain, light blooming, and daytime overexposure penalty.
 
-### Controls:
-- **`F7`**: Cycle sensor modes (`COLOR` ➔ `FLIR IRONBOW` ➔ `FLIR WHITE HOT` ➔ `FLIR BLACK HOT` ➔ `NVG`).
-  *(Customizable via BepInEx Configuration Manager or `BepInEx/config/ua.ncmod.blind.cfg`)*.
+### 2. Dynamic Vehicle & Particle Thermal Physics
+* **Engine & Airframe Heat**: Vehicles, aircraft, and armor heat up dynamically based on engine RPM, throttle, speed, and sustained combat damage with natural cooling dissipation.
+* **Missile Plumes & Rockets**: Rocket motors, booster burns, and missile trails emit intense thermal signatures in all FLIR modes.
+* **Explosions & Fire**: Fuel burns and detonations display smooth, organic thermal expansion and decay without visual block artifacts.
 
-### Installation:
-1. Requires **BepInEx 5** installed in your Nuclear Option directory.
-2. Extract or copy:
-   - `BLIND.dll`
-   - `blind-thermal.bundle`
-   directly into `Nuclear Option/BepInEx/plugins/`.
-3. Launch Nuclear Option. Enjoy!
+### 3. JTAC Ground Laser Designation
+* **Allied Coordination**: Friendly ground armor (IFVs, APCs, MBTs) and defensive outpost structures scan and designate hostile vehicles within 4 km line-of-sight.
+* **Datalink Cueing**: When flying within 15 km of a JTAC engagement, pilot HUD displays `LGB TGT ACQ`, exact target range, and a cue box.
+* **Autonomous Laser Guidance**: Stock laser-guided weapons (LGBs, guided missiles) lock onto the ground observer's laser emitter, allowing standoff drops without the player needing to self-lase.
+
+---
+
+## 🎮 Controls
+
+| Key | Action | Notes |
+|---|---|---|
+| **`F7`** | **Cycle Sensor Mode** | `COLOR` ➔ `FLIR IRONBOW` ➔ `FLIR WHITE HOT` ➔ `FLIR BLACK HOT` ➔ `NVG` |
+
+*(Keybinding can be rebound in `BepInEx/config/ua.ncmod.blind.cfg` or via BepInEx Configuration Manager).*
+
+---
+
+## 📥 Installation
+
+1. Make sure you have **[BepInEx 5](https://github.com/BepInEx/BepInEx/releases)** installed for Nuclear Option.
+2. Download the latest release from the [Releases](https://github.com/XBarni999/B.L.I.N.D/releases) page.
+3. Place both:
+   * `BLIND.dll`
+   * `blind-thermal.bundle`
+   directly into your `Nuclear Option/BepInEx/plugins/` directory.
+4. Launch the game! Configuration file is automatically generated at `BepInEx/config/ua.ncmod.blind.cfg`.
 
 ---
 
 ## ⚙️ Configuration (`ua.ncmod.blind.cfg`)
 
-| Setting | Default | Description |
+| Parameter | Default | Description |
 |---|---|---|
-| `Sensors.CycleModeKey` | `F7` | Key shortcut to switch camera sensor modes |
-| `Sensors.ThermalSpan` | `1.25` | Contrast range (lower = higher contrast) |
-| `Sensors.ThermalNoise` | `0.008` | Thermal detector sensor noise amplitude |
-| `Sensors.WhiteHotCeiling`| `0.86` | Highlight ceiling to prevent White-Hot eye strain |
-| `JTAC.Enabled` | `true` | Toggle friendly JTAC laser designation |
-| `JTAC.GroundLaserRange` | `4000` | Max observer laser designation distance (meters) |
-| `JTAC.AircraftReceiveRange` | `15000` | Max datalink broadcast range to aircraft (meters) |
-| `JTAC.MaxDesignationTime` | `20` | Max continuous laser painting duration (seconds) |
-| `JTAC.DesignatorCooldown` | `12` | Cooldown time between laser designations (seconds) |
+| `Sensors.CycleModeKey` | `F7` | Key shortcut to switch sensor modes |
+| `Sensors.ThermalSpan` | `1.25` | Display dynamic range span (lower = higher contrast) |
+| `Sensors.ThermalNoise` | `0.008` | Thermal detector sensor noise level |
+| `Sensors.WhiteHotCeiling`| `0.86` | Highlight cap to prevent extreme overexposure in White-Hot |
+| `JTAC.Enabled` | `true` | Toggle friendly JTAC ground laser designation |
+| `JTAC.GroundLaserRange` | `4000` | Observer-to-target designation range (meters) |
+| `JTAC.AircraftReceiveRange` | `15000` | Max datalink broadcast range to player aircraft (meters) |
+| `JTAC.MaxDesignationTime` | `20` | Max continuous laser designation duration (seconds) |
+| `JTAC.DesignatorCooldown` | `12` | Designator cooling interval between lasing cycles (seconds) |
 
 ---
 
-## 🛠️ Building From Source
+## 🛠️ Building from Source
 
 ```powershell
-# Restore dependencies and build
+# Build mod assembly
 dotnet restore BLIND.csproj --configfile NuGet.Config
 dotnet build BLIND.csproj -c Release --no-restore
 ```
-To build the shader bundle from Unity:
+
 ```powershell
+# Build thermal shader bundle via Unity Editor (Unity 6000.2.7f2 / 2022.3 compatible)
 Unity.exe -batchmode -quit -projectPath "ShaderProject" -executeMethod BuildThermal.Build -logFile "build.log"
 ```
 
 ---
-*Created by XBarni999.*
+
+## 📜 License & Credits
+
+Created by **XBarni999**.  
+Designed for **Nuclear Option** by Shockfront Studios.
