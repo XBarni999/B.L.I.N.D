@@ -160,8 +160,8 @@ namespace BLIND
         private static float DesiredHeat(Unit unit)
         {
             if (unit.disabled || unit.unitState == Unit.UnitState.Destroyed) return 0.17f;
-            if (unit is Building) return 0.16f;
-            float heat = 0.27f;
+            if (unit is Building) return 0.22f;
+            float heat = 0.38f;
             Aircraft aircraft = unit as Aircraft;
             if (aircraft != null)
             {
@@ -171,16 +171,20 @@ namespace BLIND
                     foreach (var engine in aircraft.engines) if (engine != null) rpm += Mathf.Clamp01(engine.GetRPMRatio());
                     rpm /= aircraft.engines.Count;
                 }
-                heat += rpm * 0.23f;
+                heat += 0.10f + rpm * 0.35f;
             }
-            else if (unit is GroundVehicle) heat += 0.12f + Mathf.Clamp01(unit.speed / 18f) * 0.13f;
-            else if (unit is Ship) heat += 0.1f;
+            else if (unit is GroundVehicle)
+            {
+                // Active ground units (AA, tanks, IFVs) run generators/engines continuously
+                heat = 0.45f + Mathf.Clamp01(unit.speed / 12f) * 0.25f;
+            }
+            else if (unit is Ship) heat = 0.35f;
             else if (unit is Missile)
             {
                 Missile m = (Missile)unit;
                 heat = m.EngineOn() ? 1.8f : 0.65f;
             }
-            if (unit.unitState == Unit.UnitState.Damaged) heat += 0.07f;
+            if (unit.unitState == Unit.UnitState.Damaged) heat += 0.12f;
             return heat;
         }
 
@@ -260,11 +264,12 @@ namespace BLIND
                 name += " " + original.name.ToLowerInvariant();
             }
 
-            // Exclude cold non-thermal effects (shockwave rings, ground decals, dirt, dust, craters)
+            // Exclude cold non-thermal effects and square explosion billboards (shockwave rings, ground decals, dirt, dust, craters)
             bool isNonThermal = name.Contains("shock") || name.Contains("wave") || name.Contains("distortion") ||
                                 name.Contains("refract") || name.Contains("decal") || name.Contains("ground") ||
                                 name.Contains("dirt") || name.Contains("dust") || name.Contains("rubble") ||
-                                name.Contains("debris") || name.Contains("crater");
+                                name.Contains("debris") || name.Contains("crater") || name.Contains("billboard") ||
+                                name.Contains("smoke_ring") || name.Contains("quad") || name.Contains("ring");
 
             if (isNonThermal)
             {

@@ -56,20 +56,26 @@ Shader "Hidden/BLIND/Thermal"
             heat *= 1 + (textureDetail-0.5)*_DetailAmount + (facing-0.5)*0.08;
             if (_Effect > 0.5) {
                 float alpha = (_UseAlpha > 0.5 ? detail.a : 1.0) * i.color.a;
-                clip(alpha - 0.06);
-                heat *= pow(saturate(alpha), 1.5);
+                // Clip near-transparent edge artifacts
+                clip(alpha - 0.08);
+                // Radial soft falloff for particle billboard quads
+                float2 uvCentered = abs(i.uv * 2.0 - 1.0);
+                float quadDist = dot(uvCentered, uvCentered);
+                clip(1.0 - quadDist * 0.95);
+                float radialFeather = saturate(1.0 - quadDist);
+                heat *= pow(saturate(alpha), 1.3) * pow(radialFeather, 0.75);
             }
             float transmission = exp(-i.eye * (0.000016 + _Atmosphere*0.00010));
-            return lerp(0.13, max(0.02,heat), transmission);
+            return lerp(0.09, max(0.02,heat), transmission);
         }
         float Background(v2f_img i):SV_Target {
             float depth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.uv);
             float distance = LinearEyeDepth(depth);
             float lum = dot(tex2D(_MainTex,i.uv).rgb,float3(0.2126,0.7152,0.0722));
-            // Background remains an approximation; compress visible lighting into a narrow band.
-            float heat = 0.10 + 0.065 * saturate(log2(1 + max(0,lum)));
-            if (distance > _ProjectionParams.z*0.98) heat = 0.045;
-            return lerp(0.13,heat,exp(-distance*(0.000016+_Atmosphere*0.00010)));
+            // Background remains cool terrain; compress visible lighting so cold ground stays distinct from warm vehicles.
+            float heat = 0.07 + 0.045 * saturate(log2(1 + max(0,lum)));
+            if (distance > _ProjectionParams.z*0.98) heat = 0.035;
+            return lerp(0.09,heat,exp(-distance*(0.000016+_Atmosphere*0.00010)));
         }
         float3 Iron(float t) {
             float3 a=float3(0.015,0.008,0.025), b=float3(0.19,0.025,0.33);
@@ -83,15 +89,18 @@ Shader "Hidden/BLIND/Thermal"
         }
         float4 Palette(v2f_img i):SV_Target {
             float heat=tex2D(_MainTex,i.uv).r;
-            // Compress intense fire without sacrificing the body-to-background separation.
-            float t=saturate(log2(1+max(0,heat-0.035)*3.0)/log2(1+max(0.2,_Span)*3.0));
+            // Enhanced contrast mapping separating cold background (~0.07-0.10) from warm vehicles (0.35-0.70)
+            float t=saturate(log2(1+max(0,heat-0.03)*3.5)/log2(1+max(0.2,_Span)*3.5));
             float noise=frac(sin(dot(floor(i.uv*_MainTex_TexelSize.zw),float2(12.9898,78.233))+floor(_Time.y*24))*43758.5453)-0.5;
             t=saturate(t+noise*_Noise);
-            // White Hot has its own shoulder: hot surfaces retain differences above the old clipping point.
-            float whiteSignal = 1-exp(-max(0,heat-0.035)/max(0.2,_Span)*1.8);
-            float whiteHot = _WhiteHotCeiling * saturate(pow(whiteSignal,0.85)+noise*_Noise);
-            // Black Hot: hot is dark, cold is light, with background mapped to neutral mid-gray instead of blinding white.
-            float blackHot = saturate(lerp(0.78, 0.04, pow(t, 0.75)) - noise*_Noise);
+
+            // White Hot: crisp contrast curve, hot vehicles glow brilliantly against dark background
+            float whiteSignal = saturate((t - 0.08) / 0.85);
+            float whiteHot = _WhiteHotCeiling * saturate(pow(whiteSignal, 0.90) * 1.08 + noise*_Noise);
+
+            // Black Hot: clear tactical contrast where hot vehicles stand out as deep black silhouettes against clean light ground
+            float blackHot = saturate(lerp(0.85, 0.02, pow(saturate((t - 0.05) / 0.88), 0.80)) - noise*_Noise);
+
             float3 rgb = _Mode<0.5 ? Iron(t) : (_Mode<1.5 ? whiteHot.xxx : blackHot.xxx);
             // URP target is linear; palettes above are defined in display space.
             return float4(GammaToLinearSpace(rgb),1);
