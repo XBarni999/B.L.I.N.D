@@ -55,15 +55,12 @@ Shader "Hidden/BLIND/Thermal"
             float facing = abs(dot(normalize(i.normal), normalize(_WorldSpaceCameraPos-i.world)));
             heat *= 1 + (textureDetail-0.5)*_DetailAmount + (facing-0.5)*0.08;
             if (_Effect > 0.5) {
-                float alpha = (_UseAlpha > 0.5 ? detail.a : 1.0) * i.color.a;
-                // Clip near-transparent edge artifacts
-                clip(alpha - 0.08);
-                // Radial soft falloff for particle billboard quads
-                float2 uvCentered = abs(i.uv * 2.0 - 1.0);
-                float quadDist = dot(uvCentered, uvCentered);
-                clip(1.0 - quadDist * 0.95);
-                float radialFeather = saturate(1.0 - quadDist);
-                heat *= pow(saturate(alpha), 1.3) * pow(radialFeather, 0.75);
+                // For additive explosion textures where alpha is 1, RGB luminance defines flame shape.
+                float lum = dot(detail.rgb, float3(0.299, 0.587, 0.114));
+                float texAlpha = (_UseAlpha > 0.5) ? min(detail.a, max(detail.a * 0.15, lum * 2.2)) : lum;
+                float alpha = texAlpha * i.color.a;
+                clip(alpha - 0.035);
+                heat *= pow(saturate(alpha), 1.2);
             }
             float transmission = exp(-i.eye * (0.000016 + _Atmosphere*0.00010));
             return lerp(0.09, max(0.02,heat), transmission);
