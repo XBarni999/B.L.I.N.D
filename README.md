@@ -9,7 +9,7 @@ It overhauls the cockpit target camera (`TargetCam`) with physically-inspired th
 
 ---
 
-## ✨ Features
+##  Features
 
 ### 1. Advanced Targeting Pod Sensor Optics
 * **Isolated Cockpit Display**: Custom URP post-processing render pipeline running strictly on the aircraft target camera. Does not modify cockpit cockpit dials, canopy glass, or external world lighting.
@@ -30,7 +30,7 @@ It overhauls the cockpit target camera (`TargetCam`) with physically-inspired th
 
 ---
 
-## 🎮 Controls
+##  Controls
 
 | Key | Action | Notes |
 |---|---|---|
@@ -52,7 +52,7 @@ It overhauls the cockpit target camera (`TargetCam`) with physically-inspired th
 
 ---
 
-## ⚙️ Configuration (`ua.ncmod.blind.cfg`)
+##  Configuration (`ua.ncmod.blind.cfg`)
 
 | Parameter | Default | Description |
 |---|---|---|
@@ -68,7 +68,7 @@ It overhauls the cockpit target camera (`TargetCam`) with physically-inspired th
 
 ---
 
-## 🛠️ Building from Source
+##  Building from Source
 
 ```powershell
 # Build mod assembly
