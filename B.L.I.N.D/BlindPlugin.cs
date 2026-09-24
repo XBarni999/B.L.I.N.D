@@ -23,10 +23,15 @@ namespace BLIND
         internal ConfigEntry<float> WhiteHotCeiling;
         internal ConfigEntry<bool> EnableJtac;
         internal ConfigEntry<float> GroundLaserRange;
+        internal ConfigEntry<float> NavalLaserRange;
         internal ConfigEntry<float> AircraftReceiveRange;
         internal ConfigEntry<float> MaxDesignationTime;
         internal ConfigEntry<float> DesignatorCooldown;
         internal ConfigEntry<int> MaxConcurrentDesignations;
+        internal ConfigEntry<bool> EnableExplosionOverhaul;
+        internal ConfigEntry<float> SmokePersistenceMultiplier;
+        internal ConfigEntry<bool> EnableShockwaveDistortion;
+        internal ConfigEntry<float> ShockwaveIntensity;
 
         private Harmony _harmony;
         private BlindRuntime _runtime;
@@ -45,13 +50,16 @@ namespace BLIND
             WhiteHotCeiling = Config.Bind("Sensors", "WhiteHotCeiling", 0.86f,
                 new ConfigDescription("Maximum display brightness in WHITE HOT, with a soft highlight shoulder. Does not change Ironbow.", new AcceptableValueRange<float>(0.5f, 1f)));
             EnableJtac = Config.Bind("JTAC", "Enabled", true,
-                "Allow allied ground vehicles to designate hostile surface targets. Host authority is required.");
+                "Allow allied ground vehicles and naval ships to designate hostile surface/naval targets. Host authority is required.");
             GroundLaserRange = Config.Bind("JTAC", "GroundLaserRange", 4000f,
-                new ConfigDescription("Maximum observer-to-target designation range in metres.",
+                new ConfigDescription("Maximum observer-to-target designation range for ground vehicles in metres.",
                     new AcceptableValueRange<float>(500f, 8000f)));
-            AircraftReceiveRange = Config.Bind("JTAC", "AircraftReceiveRange", 15000f,
+            NavalLaserRange = Config.Bind("JTAC", "NavalLaserRange", 15000f,
+                new ConfigDescription("Maximum observer-to-target designation range for naval ships in metres.",
+                    new AcceptableValueRange<float>(2000f, 25000f)));
+            AircraftReceiveRange = Config.Bind("JTAC", "AircraftReceiveRange", 18000f,
                 new ConfigDescription("Maximum aircraft-to-designated-target cue range in metres.",
-                    new AcceptableValueRange<float>(2000f, 30000f)));
+                    new AcceptableValueRange<float>(2000f, 35000f)));
             MaxDesignationTime = Config.Bind("JTAC", "MaxDesignationTime", 20f,
                 new ConfigDescription("Maximum uninterrupted designation time in seconds.",
                     new AcceptableValueRange<float>(3f, 120f)));
@@ -61,6 +69,16 @@ namespace BLIND
             MaxConcurrentDesignations = Config.Bind("JTAC", "MaxConcurrentDesignations", 4,
                 new ConfigDescription("Maximum simultaneous ground designations for the local faction.",
                     new AcceptableValueRange<int>(1, 16)));
+            EnableExplosionOverhaul = Config.Bind("Explosions", "Enabled", true,
+                "Overhaul explosion VFX with dynamic scaling and prolonged lingering smoke.");
+            SmokePersistenceMultiplier = Config.Bind("Explosions", "SmokePersistenceMultiplier", 2.8f,
+                new ConfigDescription("Lifetime multiplier for lingering smoke and dust clouds.",
+                    new AcceptableValueRange<float>(1.0f, 4.0f)));
+            EnableShockwaveDistortion = Config.Bind("Explosions", "ShockwaveDistortion", true,
+                "Spawn a procedural optical refraction shockwave at the blast epicenter.");
+            ShockwaveIntensity = Config.Bind("Explosions", "ShockwaveIntensity", 1.0f,
+                new ConfigDescription("Intensity of optical screen distortion for shockwaves.",
+                    new AcceptableValueRange<float>(0.2f, 2.5f)));
 
             _runtime = gameObject.AddComponent<BlindRuntime>();
             _runtime.Initialize(this);

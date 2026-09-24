@@ -6,7 +6,7 @@ namespace BLIND
 {
     internal sealed class JtacDesignationSystem
     {
-        private sealed class Designation
+        internal sealed class Designation
         {
             internal Unit Observer;
             internal Unit Target;
@@ -79,6 +79,22 @@ namespace BLIND
             return target != null;
         }
 
+        internal void GetActiveCues(Aircraft aircraft, List<Designation> results)
+        {
+            results.Clear();
+            if (aircraft == null) return;
+
+            foreach (Designation designation in _active.Values)
+            {
+                if (!IsAlive(designation.Target)) continue;
+                float distance = FastMath.Distance(aircraft.GlobalPosition(), designation.Target.GlobalPosition());
+                if (distance <= _plugin.AircraftReceiveRange.Value)
+                {
+                    results.Add(designation);
+                }
+            }
+        }
+
         internal bool IsTargetDesignated(Unit unit)
         {
             return unit != null && _active.Values.Any(value => value.Target == unit);
@@ -118,22 +134,23 @@ namespace BLIND
             FactionHQ friendlyHq = aircraft.NetworkHQ;
             Unit[] units = UnitRegistry.allUnits.Where(IsAlive).ToArray();
             Unit[] observers = units
-                .Where(unit => unit.NetworkHQ == friendlyHq && IsGroundDesignator(unit))
+                .Where(unit => unit.NetworkHQ == friendlyHq && IsValidDesignatorUnit(unit))
                 .ToArray();
 
             HashSet<Unit> validObservers = new HashSet<Unit>(observers);
+
+            // 1. Maintain or prune existing active designations
             foreach (Unit observer in _active.Keys.ToArray())
             {
                 Designation designation = _active[observer];
                 bool missileInFlight = LaserSeekerPersistence.HasActiveMissileTracking(designation.Target);
                 if (missileInFlight)
                 {
-                    // Keep designation refreshed while an allied missile is actively guiding to it
+                    // Refresh designation lifespan while missile is actively tracking
                     designation.StartedAt = Mathf.Max(designation.StartedAt, Time.timeSinceLevelLoad - (_plugin.MaxDesignationTime.Value * 0.5f));
                 }
 
                 bool expired = !missileInFlight && (Time.timeSinceLevelLoad - designation.StartedAt >= _plugin.MaxDesignationTime.Value);
-                // An ongoing ground designation does not require the launching aircraft to maintain receive range once fired
                 bool valid = validObservers.Contains(observer) &&
                              IsValidPair(observer, designation.Target, aircraft, false);
                 if (!valid || expired)
@@ -147,82 +164,131 @@ namespace BLIND
                 }
             }
 
-            Unit selectedTarget = GetSelectedSurfaceTarget(aircraft, friendlyHq);
-            if (selectedTarget == null)
+            // 2. Fetch all selected hostile surface/naval targets from aircraft weapon manager
+            List<Unit> selectedTargets = GetSelectedSurfaceTargets(aircraft, friendlyHq);
+            if (selectedTargets.Count == 0)
             {
                 return;
             }
-            if (IsTargetDesignated(selectedTarget))
+
+            // If all selected targets are already lased, clear diagnostic banner
+            bool allDesignated = selectedTargets.All(IsTargetDesignated);
+            if (allDesignated)
             {
                 SetDiagnostic(string.Empty);
                 return;
             }
-            if (FastMath.OutOfRange(aircraft.GlobalPosition(), selectedTarget.GlobalPosition(),
-                    _plugin.AircraftReceiveRange.Value))
+
+            // 3. Multi-target assignment: 1 observer designates exactly 1 target.
+            // When multiple targets are selected, assign available observers greedily
+            // by best proximity/LOS. If there aren't enough allies, designate as many as possible.
+            int successfullyAssigned = 0;
+            string lastReason = string.Empty;
+
+            foreach (Unit target in selectedTargets)
             {
-                SetDiagnostic("JTAC • TARGET OUT OF DATALINK RANGE");
-                return;
-            }
-            if (_active.Count >= _plugin.MaxConcurrentDesignations.Value)
-            {
-                SetDiagnostic("JTAC • DESIGNATORS BUSY");
-                return;
+                if (IsTargetDesignated(target))
+                {
+                    successfullyAssigned++;
+                    continue;
+                }
+
+                if (_active.Count >= _plugin.MaxConcurrentDesignations.Value)
+                {
+                    lastReason = "JTAC • DESIGNATORS MAXED (" + _plugin.MaxConcurrentDesignations.Value + ")";
+                    break;
+                }
+
+                if (FastMath.OutOfRange(aircraft.GlobalPosition(), target.GlobalPosition(), _plugin.AircraftReceiveRange.Value))
+                {
+                    lastReason = "JTAC • TARGET OUT OF DATALINK RANGE";
+                    continue;
+                }
+
+                Unit[] available = observers.Where(IsObserverAvailable).ToArray();
+                if (available.Length == 0)
+                {
+                    lastReason = observers.Length == 0 ? "JTAC • NO ALLIED DESIGNATORS" : "JTAC • ALLIES BUSY / COOLING";
+                    break;
+                }
+
+                // Check observers in laser range of this specific target
+                Unit[] inRange = available
+                    .Where(obs => FastMath.InRange(obs.GlobalPosition(), target.GlobalPosition(), GetMaxDesignationRange(obs, target)))
+                    .OrderBy(obs => FastMath.SquareDistance(obs.GlobalPosition(), target.GlobalPosition()))
+                    .ToArray();
+
+                if (inRange.Length == 0)
+                {
+                    float maxR = (target is Ship) ? _plugin.NavalLaserRange.Value : _plugin.GroundLaserRange.Value;
+                    lastReason = "JTAC • NO ALLY IN RANGE (" + (maxR * 0.001f).ToString("0.0") + " KM)";
+                    continue;
+                }
+
+                Unit observerWithLos = inRange.FirstOrDefault(obs => HasLineOfSight(obs, target));
+                if (observerWithLos == null)
+                {
+                    lastReason = "JTAC • NO LINE OF SIGHT TO TARGET";
+                    continue;
+                }
+
+                // Found matching available observer!
+                Acquire(observerWithLos, target, friendlyHq);
+                successfullyAssigned++;
             }
 
-            Unit[] available = observers.Where(IsObserverAvailable).ToArray();
-            if (available.Length == 0)
+            if (successfullyAssigned > 0)
             {
-                SetDiagnostic(observers.Length == 0
-                    ? "JTAC • NO ALLIED GROUND DESIGNATOR"
-                    : "JTAC • DESIGNATORS BUSY / COOLING");
-                return;
+                SetDiagnostic(string.Empty);
             }
-
-            Unit[] inRange = available
-                .Where(observer => FastMath.InRange(observer.GlobalPosition(), selectedTarget.GlobalPosition(),
-                    _plugin.GroundLaserRange.Value))
-                .OrderBy(observer => FastMath.SquareDistance(observer.GlobalPosition(), selectedTarget.GlobalPosition()))
-                .ToArray();
-            if (inRange.Length == 0)
+            else if (!string.IsNullOrEmpty(lastReason))
             {
-                SetDiagnostic("JTAC • NO DESIGNATOR WITHIN " +
-                              (_plugin.GroundLaserRange.Value * 0.001f).ToString("0.0") + " KM");
-                return;
+                SetDiagnostic(lastReason);
             }
-
-            Unit observerWithLos = inRange.FirstOrDefault(observer => HasLineOfSight(observer, selectedTarget));
-            if (observerWithLos == null)
-            {
-                SetDiagnostic("JTAC • NO GROUND LINE OF SIGHT");
-                return;
-            }
-
-            Acquire(observerWithLos, selectedTarget, friendlyHq);
-            SetDiagnostic(string.Empty);
         }
 
-        private Unit GetSelectedSurfaceTarget(Aircraft aircraft, FactionHQ friendlyHq)
+        private List<Unit> GetSelectedSurfaceTargets(Aircraft aircraft, FactionHQ friendlyHq)
         {
+            List<Unit> result = new List<Unit>();
+            if (aircraft == null || aircraft.weaponManager == null) return result;
+
             List<Unit> targetList = aircraft.weaponManager.GetTargetList();
             if (targetList == null || targetList.Count == 0)
             {
                 SetDiagnostic(string.Empty);
-                return null;
+                return result;
             }
 
-            Unit selected = targetList[0];
-            if (!IsAlive(selected)) return null;
-            if (selected.NetworkHQ == null || selected.NetworkHQ == friendlyHq)
+            for (int i = 0; i < targetList.Count; i++)
             {
-                SetDiagnostic("JTAC • SELECT A HOSTILE TARGET");
-                return null;
+                Unit candidate = targetList[i];
+                if (!IsAlive(candidate)) continue;
+                if (candidate.NetworkHQ == null || candidate.NetworkHQ == friendlyHq) continue;
+
+                // Support Ground Vehicles, Buildings, and Naval Ships
+                if (candidate is GroundVehicle || candidate is Building || candidate is Ship)
+                {
+                    if (!result.Contains(candidate))
+                    {
+                        result.Add(candidate);
+                    }
+                }
             }
-            if (!(selected is GroundVehicle) && !(selected is Building))
+
+            if (result.Count == 0 && targetList.Count > 0)
             {
-                SetDiagnostic("JTAC • TARGET IS NOT A SURFACE UNIT / BUILDING");
-                return null;
+                Unit first = targetList[0];
+                if (first != null && (first.NetworkHQ == null || first.NetworkHQ == friendlyHq))
+                {
+                    SetDiagnostic("JTAC • SELECT A HOSTILE TARGET");
+                }
+                else
+                {
+                    SetDiagnostic("JTAC • AIR TARGETS CANNOT BE GROUND-LASED");
+                }
             }
-            return selected;
+
+            return result;
         }
 
         private bool IsObserverAvailable(Unit observer)
@@ -233,15 +299,27 @@ namespace BLIND
                    Time.timeSinceLevelLoad >= cooldown;
         }
 
+        private float GetMaxDesignationRange(Unit observer, Unit target)
+        {
+            // Ships and naval targets have elevated optics / open sea horizon: 15km range
+            if (observer is Ship || target is Ship)
+            {
+                return _plugin.NavalLaserRange.Value;
+            }
+            return _plugin.GroundLaserRange.Value;
+        }
+
         private bool IsValidPair(Unit observer, Unit target, Aircraft aircraft, bool requireAircraftRange)
         {
             if (!IsAlive(observer) || !IsAlive(target) || aircraft == null) return false;
-            if (!IsGroundDesignator(observer) || observer.NetworkHQ == null || target.NetworkHQ == observer.NetworkHQ)
+            if (!IsValidDesignatorUnit(observer) || observer.NetworkHQ == null || target.NetworkHQ == observer.NetworkHQ)
             {
                 return false;
             }
-            if (!(target is GroundVehicle) && !(target is Building)) return false;
-            if (FastMath.OutOfRange(observer.GlobalPosition(), target.GlobalPosition(), _plugin.GroundLaserRange.Value))
+            if (!(target is GroundVehicle) && !(target is Building) && !(target is Ship)) return false;
+
+            float maxRange = GetMaxDesignationRange(observer, target);
+            if (FastMath.OutOfRange(observer.GlobalPosition(), target.GlobalPosition(), maxRange))
             {
                 return false;
             }
@@ -256,14 +334,17 @@ namespace BLIND
         private static bool HasLineOfSight(Unit observer, Unit target)
         {
             if (observer == null || target == null) return false;
-            float height = observer.definition == null ? 2f : observer.definition.height;
-            Vector3 origin = observer.transform.position + Vector3.up * Mathf.Max(1.5f, height * 0.55f);
+            float height = observer.definition == null ? 2.5f : observer.definition.height;
+            // Elevate sensor origin based on unit type (ships have high superstructures/masts)
+            float eyeOffset = (observer is Ship) ? Mathf.Max(6f, height * 0.7f) : Mathf.Max(1.8f, height * 0.55f);
+            Vector3 origin = observer.transform.position + Vector3.up * eyeOffset;
             return target.LineOfSight(origin, 1000f);
         }
 
-        private static bool IsGroundDesignator(Unit unit)
+        private static bool IsValidDesignatorUnit(Unit unit)
         {
-            return unit is GroundVehicle || unit is Building;
+            // Allied ground vehicles, coastal/ground defense buildings, and naval combat ships
+            return unit is GroundVehicle || unit is Building || unit is Ship;
         }
 
         private void Acquire(Unit observer, Unit target, FactionHQ hq)
@@ -277,8 +358,8 @@ namespace BLIND
             });
             hq.UpdateLasedState(target, true);
             BlindPlugin.LogSource.LogMessage("[B.L.I.N.D.] " + observer.unitName +
-                                             " is designating selected target " + target.unitName + " for " +
-                                             _plugin.MaxDesignationTime.Value.ToString("0") + " seconds.");
+                                             " is designating hostile " + target.unitName + " for " +
+                                             _plugin.MaxDesignationTime.Value.ToString("0") + "s.");
         }
 
         private void Release(Unit observer)

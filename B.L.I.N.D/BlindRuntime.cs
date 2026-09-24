@@ -62,6 +62,9 @@ namespace BLIND
             }
         }
 
+        private readonly System.Collections.Generic.List<JtacDesignationSystem.Designation> _cuesBuffer =
+            new System.Collections.Generic.List<JtacDesignationSystem.Designation>();
+
         private void OnGUI()
         {
             if (_localAircraft == null || Sensors == null || _jtac == null) return;
@@ -70,13 +73,21 @@ namespace BLIND
             // 1. Стильний авіаційний OSD індикатор режимів сенсора (у верхній зоні HUD)
             DrawSensorModeBanner();
 
-            // 2. Індикація лазерного підсвічування JTAC
-            Unit target;
-            float range;
-            if (_jtac.TryGetBestCue(_localAircraft, out target, out range))
+            // 2. Індикація лазерного підсвічування JTAC (підтримка кількох підсвічених цілей)
+            _jtac.GetActiveCues(_localAircraft, _cuesBuffer);
+            if (_cuesBuffer.Count > 0)
             {
-                DrawJtacCueBanner(range);
-                DrawTargetBox(target, range);
+                float closestRange = float.MaxValue;
+                for (int i = 0; i < _cuesBuffer.Count; i++)
+                {
+                    Unit target = _cuesBuffer[i].Target;
+                    if (target == null) continue;
+                    float range = FastMath.Distance(_localAircraft.GlobalPosition(), target.GlobalPosition());
+                    if (range < closestRange) closestRange = range;
+                    DrawTargetBox(target, range);
+                }
+
+                DrawJtacCueBanner(closestRange, _cuesBuffer.Count);
             }
             else if (_jtac.ShowDiagnostic)
             {
@@ -126,9 +137,9 @@ namespace BLIND
             DrawOutlinedText(new Rect(x, y + 1f, width, 20f), Sensors.ModeLabel, _modeStyle, shadowColor, mainColor);
         }
 
-        private void DrawJtacCueBanner(float range)
+        private void DrawJtacCueBanner(float range, int targetCount)
         {
-            float width = 220f;
+            float width = targetCount > 1 ? 250f : 220f;
             float height = 20f;
             float x = (Screen.width - width) * 0.5f;
             float y = Sensors.ModeMessageAlpha > 0.005f ? 46f : 20f;
@@ -136,7 +147,9 @@ namespace BLIND
             Color hudGreen = new Color(0.35f, 0.95f, 0.65f);
             DrawRect(new Rect(x, y, width, height), new Color(0.02f, 0.05f, 0.03f, 0.45f));
 
-            string text = "JTAC  •  " + (range * 0.001f).ToString("0.0") + " KM";
+            string text = targetCount > 1
+                ? "JTAC [" + targetCount + " TGT]  •  " + (range * 0.001f).ToString("0.0") + " KM"
+                : "JTAC  •  " + (range * 0.001f).ToString("0.0") + " KM";
             DrawOutlinedText(new Rect(x, y + 1f, width, 18f), text, _cueStyle, Color.black, hudGreen);
         }
 
