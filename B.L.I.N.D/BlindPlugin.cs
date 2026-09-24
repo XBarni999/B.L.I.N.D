@@ -37,13 +37,13 @@ namespace BLIND
             LogSource = Logger;
 
             SensorModeKey = Config.Bind("Sensors", "CycleModeKey", new KeyboardShortcut(KeyCode.F7),
-                "Cycle COLOR, FLIR IRONBOW, FLIR WHITE HOT, FLIR BLACK HOT and NVG on the cockpit target camera.");
+                "Cycle STANDARD IR, LONGBOW and IR BLACK on the cockpit target camera.");
             ThermalSpan = Config.Bind("Sensors", "ThermalSpan", 1.25f,
                 new ConfigDescription("Fixed thermal display span. Lower values increase contrast; fixed gain prevents flashes darkening the whole scene.", new AcceptableValueRange<float>(0.5f, 4f)));
             ThermalNoise = Config.Bind("Sensors", "ThermalNoise", 0.008f,
                 new ConfigDescription("Thermal detector noise amplitude.", new AcceptableValueRange<float>(0f, 0.04f)));
             WhiteHotCeiling = Config.Bind("Sensors", "WhiteHotCeiling", 0.86f,
-                new ConfigDescription("Maximum display brightness in WHITE HOT, with a soft highlight shoulder. Does not change Ironbow or Black Hot.", new AcceptableValueRange<float>(0.5f, 1f)));
+                new ConfigDescription("Maximum display brightness in WHITE HOT, with a soft highlight shoulder. Does not change Ironbow.", new AcceptableValueRange<float>(0.5f, 1f)));
             EnableJtac = Config.Bind("JTAC", "Enabled", true,
                 "Allow allied ground vehicles to designate hostile surface targets. Host authority is required.");
             GroundLaserRange = Config.Bind("JTAC", "GroundLaserRange", 4000f,

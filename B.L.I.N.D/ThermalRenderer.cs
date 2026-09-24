@@ -95,7 +95,7 @@ namespace BLIND
 
         internal void SetCamera(Camera value, SensorMode valueMode)
         {
-            bool thermal = valueMode == SensorMode.FlirIronbow || valueMode == SensorMode.FlirWhiteHot || valueMode == SensorMode.FlirBlackHot;
+            bool thermal = valueMode == SensorMode.FlirIronbow || valueMode == SensorMode.FlirWhiteHot;
             if (!thermal || value == null || !Ready()) value = null;
             if (camera != value)
             {
@@ -445,7 +445,7 @@ namespace BLIND
         }
         public void Dispose()
         {
-            SetCamera(null,SensorMode.Color);
+            SetCamera(null,SensorMode.VanillaIR);
             foreach (var surface in surfaces.Values) DestroySurface(surface);
             surfaces.Clear(); bodies.Clear(); effects.Clear(); activeMissiles.Clear();
             if (screen != null) UnityEngine.Object.Destroy(screen);
@@ -486,7 +486,7 @@ namespace BLIND
                     cmd.SetGlobalFloat("_BlindSpan",owner.plugin.ThermalSpan.Value);
                     cmd.SetGlobalFloat("_BlindNoise",owner.plugin.ThermalNoise.Value);
                     cmd.SetGlobalFloat("_BlindWhiteHotCeiling",owner.plugin.WhiteHotCeiling.Value);
-                    cmd.SetGlobalFloat("_BlindMode",owner.mode == SensorMode.FlirIronbow ? 0 : owner.mode == SensorMode.FlirWhiteHot ? 1 : 2);
+                    cmd.SetGlobalFloat("_BlindMode",owner.mode == SensorMode.FlirIronbow ? 0 : 1);
                     cmd.SetRenderTarget(HeatTarget);
                     cmd.ClearRenderTarget(true,true,Color.black);
                     cmd.Blit(color,HeatTarget,owner.screen,0);
@@ -506,7 +506,7 @@ namespace BLIND
                 catch (Exception e)
                 {
                     owner.failed = true;
-                    owner.SetCamera(null,SensorMode.Color);
+                    owner.SetCamera(null,SensorMode.VanillaIR);
                     BlindPlugin.LogSource.LogError("[Thermal] Render disabled; restored stock camera. " + e);
                 }
                 finally { cmd.Clear(); CommandBufferPool.Release(cmd); }

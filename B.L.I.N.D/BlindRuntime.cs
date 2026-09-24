@@ -9,7 +9,6 @@ namespace BLIND
         private BlindPlugin _plugin;
         private JtacDesignationSystem _jtac;
         private GUIStyle _modeStyle;
-        private GUIStyle _subStyle;
         private GUIStyle _cueStyle;
         private GUIStyle _warningStyle;
         private GUIStyle _targetLabelStyle;
@@ -96,109 +95,76 @@ namespace BLIND
             float alpha = Sensors.ModeMessageAlpha;
             if (alpha <= 0.005f) return;
 
-            float width = 330f;
-            float height = 44f;
+            float width = 200f;
+            float height = 22f;
             float x = (Screen.width - width) * 0.5f;
-            float y = 28f; // Верхній HUD (не перекриває прилади MFD кабіни)
+            float y = 20f;
 
             Color accentColor;
-            string subtitle;
-
             switch (Sensors.Mode)
             {
-                case SensorMode.FlirWhiteHot:
-                    accentColor = new Color(0.92f, 0.96f, 1f); // Arctic FLIR White
-                    subtitle = "FLIR THERMAL POD  •  WHITE-HOT";
-                    break;
-                case SensorMode.FlirBlackHot:
-                    accentColor = new Color(1f, 0.76f, 0.38f); // Tactical Amber
-                    subtitle = "FLIR THERMAL POD  •  BLACK-HOT";
+                case SensorMode.VanillaIR:
+                    accentColor = new Color(0.85f, 0.90f, 0.95f);
                     break;
                 case SensorMode.FlirIronbow:
-                    accentColor = new Color(1f, 0.52f, 0.16f); // Fire Orange
-                    subtitle = "FLIR THERMAL POD  •  IRONBOW";
+                    accentColor = new Color(1f, 0.65f, 0.28f);
                     break;
-                case SensorMode.NightVision:
-                    accentColor = new Color(0.35f, 1f, 0.55f); // Phosphor Green
-                    subtitle = "IMAGE INTENSIFIER  •  NVG GEN-III";
+                case SensorMode.FlirWhiteHot:
+                    accentColor = new Color(0.60f, 0.88f, 1f);
                     break;
                 default:
-                    accentColor = new Color(0.45f, 0.90f, 1f); // DTV Cyan
-                    subtitle = "DAYLIGHT OPTICS  •  DTV";
+                    accentColor = Color.white;
                     break;
             }
 
-            // Темна тактична підкладка
-            DrawRect(new Rect(x, y, width, height), new Color(0.04f, 0.07f, 0.06f, 0.88f * alpha));
+            // М'яка напівпрозора підкладка без рамок (не ріже око і легко читається)
+            DrawRect(new Rect(x, y, width, height), new Color(0.02f, 0.04f, 0.03f, 0.45f * alpha));
 
-            // Сяючі горизонтальні мікро-рамки
-            DrawRect(new Rect(x, y, width, 1.5f), new Color(accentColor.r, accentColor.g, accentColor.b, 0.65f * alpha));
-            DrawRect(new Rect(x, y + height - 1.5f, width, 1.5f), new Color(accentColor.r, accentColor.g, accentColor.b, 0.65f * alpha));
-
-            // Військові кутові дужки (corner accents)
-            Color cornerCol = new Color(accentColor.r, accentColor.g, accentColor.b, 0.95f * alpha);
-            DrawRect(new Rect(x, y, 2.5f, 9f), cornerCol);
-            DrawRect(new Rect(x, y + height - 9f, 2.5f, 9f), cornerCol);
-            DrawRect(new Rect(x + width - 2.5f, y, 2.5f, 9f), cornerCol);
-            DrawRect(new Rect(x + width - 2.5f, y + height - 9f, 2.5f, 9f), cornerCol);
-
-            // Текстовий блок
-            Color subColor = new Color(accentColor.r, accentColor.g, accentColor.b, 0.72f * alpha);
             Color mainColor = new Color(accentColor.r, accentColor.g, accentColor.b, alpha);
-            Color shadowColor = new Color(0f, 0f, 0f, 0.85f * alpha);
+            Color shadowColor = new Color(0f, 0f, 0f, 0.70f * alpha);
 
-            DrawOutlinedText(new Rect(x, y + 4f, width, 14f), subtitle, _subStyle, shadowColor, subColor);
-            DrawOutlinedText(new Rect(x, y + 19f, width, 22f), "⟪ " + Sensors.ModeLabel + " ⟫", _modeStyle, shadowColor, mainColor);
+            DrawOutlinedText(new Rect(x, y + 1f, width, 20f), Sensors.ModeLabel, _modeStyle, shadowColor, mainColor);
         }
 
         private void DrawJtacCueBanner(float range)
         {
-            float width = 340f;
-            float height = 30f;
+            float width = 220f;
+            float height = 20f;
             float x = (Screen.width - width) * 0.5f;
-            float y = 78f;
+            float y = Sensors.ModeMessageAlpha > 0.005f ? 46f : 20f;
 
-            Color hudGreen = new Color(0.35f, 1f, 0.72f);
-            DrawRect(new Rect(x, y, width, height), new Color(0.04f, 0.08f, 0.06f, 0.82f));
-            DrawRect(new Rect(x, y, width, 1.5f), hudGreen * 0.75f);
-            DrawRect(new Rect(x, y + height - 1.5f, width, 1.5f), hudGreen * 0.75f);
+            Color hudGreen = new Color(0.35f, 0.95f, 0.65f);
+            DrawRect(new Rect(x, y, width, height), new Color(0.02f, 0.05f, 0.03f, 0.45f));
 
-            string text = "JTAC DESIGNATION  •  " + (range * 0.001f).ToString("0.0") + " KM";
-            DrawOutlinedText(new Rect(x, y + 4f, width, 22f), text, _cueStyle, Color.black, hudGreen);
+            string text = "JTAC  •  " + (range * 0.001f).ToString("0.0") + " KM";
+            DrawOutlinedText(new Rect(x, y + 1f, width, 18f), text, _cueStyle, Color.black, hudGreen);
         }
 
         private void DrawDiagnosticBanner(string status)
         {
-            float width = 360f;
-            float height = 30f;
+            float width = 280f;
+            float height = 20f;
             float x = (Screen.width - width) * 0.5f;
-            float y = 78f;
+            float y = Sensors.ModeMessageAlpha > 0.005f ? 46f : 20f;
 
-            Color warnColor = new Color(1f, 0.65f, 0.2f);
-            DrawRect(new Rect(x, y, width, height), new Color(0.08f, 0.06f, 0.02f, 0.82f));
-            DrawRect(new Rect(x, y, width, 1.5f), warnColor * 0.8f);
-            DrawRect(new Rect(x, y + height - 1.5f, width, 1.5f), warnColor * 0.8f);
+            Color warnColor = new Color(1f, 0.72f, 0.28f);
+            DrawRect(new Rect(x, y, width, height), new Color(0.05f, 0.04f, 0.02f, 0.45f));
 
-            DrawOutlinedText(new Rect(x, y + 4f, width, 22f), status, _cueStyle, Color.black, warnColor);
+            DrawOutlinedText(new Rect(x, y + 1f, width, 18f), status, _cueStyle, Color.black, warnColor);
         }
 
         private void DrawLaserWarning()
         {
-            float width = 360f;
-            float height = 36f;
+            float width = 260f;
+            float height = 22f;
             float x = (Screen.width - width) * 0.5f;
-            float y = 114f;
+            float y = 70f;
 
-            float pulse = Mathf.PingPong(Time.unscaledTime * 4.5f, 1f);
-            Color alertColor = new Color(1f, 0.15f, 0.12f, 0.75f + pulse * 0.25f);
+            float pulse = Mathf.PingPong(Time.unscaledTime * 4f, 1f);
+            Color alertColor = new Color(1f, 0.20f, 0.18f, 0.75f + pulse * 0.25f);
 
-            DrawRect(new Rect(x, y, width, height), new Color(0.12f, 0.02f, 0.02f, 0.88f));
-            DrawRect(new Rect(x, y, width, 2f), alertColor);
-            DrawRect(new Rect(x, y + height - 2f, width, 2f), alertColor);
-            DrawRect(new Rect(x, y, 2f, height), alertColor);
-            DrawRect(new Rect(x + width - 2f, y, 2f, height), alertColor);
-
-            DrawOutlinedText(new Rect(x, y + 6f, width, 24f), "▲ LASER ILLUMINATION WARNING ▲", _warningStyle, Color.black, alertColor);
+            DrawRect(new Rect(x, y, width, height), new Color(0.12f, 0.02f, 0.02f, 0.55f));
+            DrawOutlinedText(new Rect(x, y + 1f, width, 20f), "▲ LASER WARNING ▲", _warningStyle, Color.black, alertColor);
         }
 
         private void DrawTargetBox(Unit target, float range)
@@ -276,22 +242,20 @@ namespace BLIND
             _modeStyle = new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.MiddleCenter,
-                fontSize = 15,
+                fontSize = 12,
                 fontStyle = FontStyle.Bold
             };
-            _subStyle = new GUIStyle(GUI.skin.label)
+            _cueStyle = new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.MiddleCenter,
-                fontSize = 10,
+                fontSize = 12,
                 fontStyle = FontStyle.Bold
             };
-            _cueStyle = new GUIStyle(_modeStyle)
+            _warningStyle = new GUIStyle(GUI.skin.label)
             {
-                fontSize = 13
-            };
-            _warningStyle = new GUIStyle(_modeStyle)
-            {
-                fontSize = 16
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 12,
+                fontStyle = FontStyle.Bold
             };
             _targetLabelStyle = new GUIStyle(GUI.skin.label)
             {

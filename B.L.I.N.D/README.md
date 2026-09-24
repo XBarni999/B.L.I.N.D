@@ -7,19 +7,18 @@ friendly ground laser designation for **Nuclear Option**.
 [Report an issue](https://github.com/XBarni999/B.L.I.N.D/issues) ·
 [Changes](CHANGELOG.md)
 
-Press **F7** to cycle **COLOR → IRONBOW → WHITE HOT → BLACK HOT → NVG**.
+Press **F7** to cycle **STANDARD IR → LONGBOW → IR BLACK**.
 The thermal pass runs on the cockpit target camera; the outside view and the
 original vehicle materials keep their normal appearance.
 
 ## What it does
 
-- Three thermal palettes share an independent heat buffer. Engine hotspots use
+- Two thermal palettes share an independent heat buffer. Engine hotspots use
   the game's infrared sources; body heat responds to engine activity, movement
   and damage. White Hot has a separate highlight ceiling.
 - Burning missile motors have a compact exhaust signature. Native fire and
   explosion particles are rendered from camera-specific geometry snapshots,
   with transparent edges and depth occlusion. Smoke is much cooler than flame.
-- NVG provides green night vision with grain and bloom.
 - Selecting an eligible hostile surface target can request designation from a
   friendly ground vehicle or building. The HUD reports acquisition or why a
   ground observer cannot designate the target. Stock laser seekers use the

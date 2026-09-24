@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -18,6 +20,7 @@ namespace BLIND
         private static readonly FieldInfo MaxSeekerAngleField = AccessTools.Field(typeof(LaserSeeker), "maxSeekerAngle");
         private static readonly ConditionalWeakTable<LaserSeeker, JtacSeekerLock> Locks =
             new ConditionalWeakTable<LaserSeeker, JtacSeekerLock>();
+        private static readonly HashSet<LaserSeeker> ActiveSeekers = new HashSet<LaserSeeker>();
 
         internal static Unit GetTarget(LaserSeeker seeker)
         {
@@ -39,6 +42,27 @@ namespace BLIND
             return Locks.GetOrCreateValue(seeker);
         }
 
+        internal static bool HasActiveMissileTracking(Unit target)
+        {
+            if (target == null) return false;
+            ActiveSeekers.RemoveWhere(s => s == null);
+            foreach (LaserSeeker seeker in ActiveSeekers.ToArray())
+            {
+                Missile missile = GetMissile(seeker);
+                if (missile == null || missile.disabled || !missile.gameObject.activeInHierarchy)
+                {
+                    ActiveSeekers.Remove(seeker);
+                    continue;
+                }
+                JtacSeekerLock seekerLock;
+                if (Locks.TryGetValue(seeker, out seekerLock) && seekerLock.Target == target)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         internal static bool TryRememberJtacTarget(LaserSeeker seeker)
         {
             BlindRuntime runtime = BlindRuntime.Instance;
@@ -56,6 +80,7 @@ namespace BLIND
 
             JtacSeekerLock seekerLock = GetOrCreateLock(seeker);
             seekerLock.Target = target;
+            ActiveSeekers.Add(seeker);
             if (!seekerLock.Logged)
             {
                 seekerLock.Logged = true;
@@ -73,7 +98,11 @@ namespace BLIND
             JtacSeekerLock seekerLock;
             if (runtime == null || !Locks.TryGetValue(seeker, out seekerLock) ||
                 seekerLock.Target == null || seekerLock.Target.disabled ||
-                !runtime.IsJtacDesignated(seekerLock.Target))
+                !seekerLock.Target.gameObject.activeInHierarchy)
+            {
+                return false;
+            }
+            if (!runtime.IsJtacDesignated(seekerLock.Target))
             {
                 return false;
             }
@@ -120,12 +149,13 @@ namespace BLIND
             if (__result || !LaserSeekerPersistence.RestoreRememberedTarget(__instance)) return;
 
             Unit target = LaserSeekerPersistence.GetRememberedTarget(__instance);
-            if (target == null) return;
+            if (target == null || target.disabled || !target.gameObject.activeInHierarchy) return;
             if (Vector3.Angle(target.transform.position - __instance.transform.position,
                     __instance.transform.forward) > LaserSeekerPersistence.GetMaxAngle(__instance))
             {
                 return;
             }
+
             __result = target.LineOfSight(__instance.transform.position, 1000f);
         }
     }

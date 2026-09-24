@@ -98,7 +98,7 @@ namespace BLIND
                         if(texture!=null) BlindPlugin.LogSource.LogInfo("BLIND_EFFECT_TEXTURE "+r.name+" "+key+"="+texture.name+" "+texture.dimension);
                     }
                 }
-                foreach(var mode in new[]{SensorMode.FlirIronbow,SensorMode.FlirWhiteHot,SensorMode.FlirBlackHot})
+                foreach(var mode in new[]{SensorMode.FlirIronbow,SensorMode.FlirWhiteHot})
                 {
                     thermal.SetCamera(camera,mode);
                     foreach(float time in new[]{0.05f,0.15f,0.35f,0.7f,1.5f,3f})
@@ -129,7 +129,7 @@ namespace BLIND
             finally
             {
                 BlindPlugin.Instance.ThermalNoise.Value=oldNoise;
-                thermal.DiagnosticSurfaces.Clear(); thermal.SetCamera(null,SensorMode.Color);
+                thermal.DiagnosticSurfaces.Clear(); thermal.SetCamera(null,SensorMode.VanillaIR);
                 RenderTexture.active=previous; rt.Release();
                 foreach(var obj in new UnityEngine.Object[]{root,cameraObject,body,bodyMaterial,pixels,rt}) UnityEngine.Object.Destroy(obj);
             }

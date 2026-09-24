@@ -1,0 +1,1 @@
+PASS: 18 native explosion frames, repeated-frame stability. Prefab: explosion_100kg_dusty. Not a full gameplay/JTAC test.

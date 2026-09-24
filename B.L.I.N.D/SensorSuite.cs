@@ -10,11 +10,9 @@ namespace BLIND
 {
     internal enum SensorMode
     {
-        Color,
+        VanillaIR,
         FlirIronbow,
-        FlirWhiteHot,
-        FlirBlackHot,
-        NightVision
+        FlirWhiteHot
     }
 
     internal sealed class SensorSuite
@@ -49,11 +47,10 @@ namespace BLIND
             {
                 switch (Mode)
                 {
-                    case SensorMode.FlirIronbow: return "FLIR IRONBOW";
-                    case SensorMode.FlirWhiteHot: return "FLIR WHITE HOT";
-                    case SensorMode.FlirBlackHot: return "FLIR BLACK HOT";
-                    case SensorMode.NightVision: return "NVG";
-                    default: return "COLOR";
+                    case SensorMode.VanillaIR: return "STANDARD IR";
+                    case SensorMode.FlirIronbow: return "LONGBOW";
+                    case SensorMode.FlirWhiteHot: return "IR BLACK";
+                    default: return "STANDARD IR";
                 }
             }
         }
@@ -85,7 +82,7 @@ namespace BLIND
         {
             if (_plugin.SensorModeKey.Value.IsDown())
             {
-                Mode = (SensorMode)(((int)Mode + 1) % 5);
+                Mode = (SensorMode)(((int)Mode + 1) % 3);
                 _modeMessageStartedAt = Time.unscaledTime;
                 _modeMessageUntil = Time.unscaledTime + 2.5f;
                 BlindPlugin.LogSource.LogMessage("[B.L.I.N.D.] Sensor mode: " + ModeLabel);
@@ -113,7 +110,7 @@ namespace BLIND
 
         internal void Shutdown()
         {
-            _thermal.SetCamera(null, SensorMode.Color);
+            _thermal.SetCamera(null, SensorMode.VanillaIR);
             RestoreNeutralProfile();
             if (_subscribed)
             {
@@ -127,8 +124,7 @@ namespace BLIND
         internal bool IsAtmosphereLimited(TargetCam targetCam, Camera camera)
         {
             return targetCam != null && targetCam == _targetCam && camera == _camera &&
-                   (Mode == SensorMode.FlirIronbow || Mode == SensorMode.FlirWhiteHot ||
-                    Mode == SensorMode.FlirBlackHot);
+                   (Mode == SensorMode.FlirIronbow || Mode == SensorMode.FlirWhiteHot);
         }
 
         private void Subscribe()
@@ -140,7 +136,7 @@ namespace BLIND
 
         private void Attach(TargetCam targetCam)
         {
-            _thermal.SetCamera(null, SensorMode.Color);
+            _thermal.SetCamera(null, SensorMode.VanillaIR);
             RestoreNeutralProfile();
             ReleaseProfile();
             _targetCam = targetCam;
@@ -193,61 +189,35 @@ namespace BLIND
         private void ApplyMode()
         {
             if (_color == null) return;
-            _thermal.SetCamera(_camera, Mode);
 
-            if (Mode == SensorMode.Color)
+            if (Mode == SensorMode.VanillaIR)
             {
+                _thermal.SetCamera(null, SensorMode.VanillaIR);
                 RestoreNeutralProfile();
+
                 float ambient = NetworkSceneSingleton<LevelInfo>.i == null
                     ? 0.2f
                     : NetworkSceneSingleton<LevelInfo>.i.GetAmbientLight();
                 float daylight = Mathf.InverseLerp(0.02f, 0.4f, ambient);
-                _color.postExposure.overrideState = true;
+
+                _color.active = true;
+                _color.saturation.overrideState = true;
+                _color.saturation.value = -100f;
                 _color.contrast.overrideState = true;
-                _color.postExposure.value = Mathf.Lerp(0.5f, -1f, daylight);
-                _color.contrast.value = 5f;
-                if (IrModeField != null) IrModeField.SetValue(_targetCam, false);
-                return;
-            }
+                _color.contrast.value = 1f;
+                _color.postExposure.overrideState = true;
+                _color.postExposure.value = Mathf.Lerp(3f, -0.5f, daylight);
 
-            _color.active = true;
-            _color.postExposure.overrideState = true;
-            _color.contrast.overrideState = true;
-            _color.saturation.overrideState = true;
-            _color.colorFilter.overrideState = true;
-
-            if (Mode == SensorMode.NightVision)
-            {
-                float ambient = 0.1f;
-                if (NetworkSceneSingleton<LevelInfo>.i != null)
-                {
-                    ambient = NetworkSceneSingleton<LevelInfo>.i.GetAmbientLight();
-                }
-                float dayBlind = Mathf.InverseLerp(0.32f, 0.65f, ambient);
-                _color.postExposure.value = Mathf.Lerp(2.2f, 3.8f, dayBlind);
-                _color.contrast.value = Mathf.Lerp(18f, -12f, dayBlind);
-                _color.saturation.value = -72f;
-                _color.colorFilter.value = new Color(0.48f, 1f, 0.56f, 1f);
-                _lookup.active = false;
-                _lookup.contribution.value = 0f;
-                _grain.active = true;
-                _grain.intensity.overrideState = true;
-                _grain.response.overrideState = true;
-                _grain.intensity.value = 0.38f;
-                _grain.response.value = 0.55f;
-                _bloom.active = true;
-                _bloom.intensity.overrideState = true;
-                _bloom.threshold.overrideState = true;
-                _bloom.intensity.value = 1.15f;
-                _bloom.threshold.value = 0.72f;
-                if (IrModeField != null) IrModeField.SetValue(_targetCam, false);
+                if (IrModeField != null) IrModeField.SetValue(_targetCam, true);
                 return;
             }
 
             // The thermal pass supplies its own radiance/palette and bypasses visible-light postprocessing.
+            _thermal.SetCamera(_camera, Mode);
             RestoreNeutralProfile();
             if (IrModeField != null) IrModeField.SetValue(_targetCam, _thermal.Ready());
         }
+
         private void RestoreNeutralProfile()
         {
             if (_color != null)
@@ -275,7 +245,11 @@ namespace BLIND
 
         private void OnBeginCameraRendering(ScriptableRenderContext context, Camera camera)
         {
-            if (camera == _camera) ApplyMode();
+            if (camera == _camera)
+            {
+                ApplyMode();
+                RenderSettings.fog = false;
+            }
         }
 
         private void ReleaseProfile()

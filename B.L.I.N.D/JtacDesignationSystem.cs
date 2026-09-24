@@ -125,9 +125,17 @@ namespace BLIND
             foreach (Unit observer in _active.Keys.ToArray())
             {
                 Designation designation = _active[observer];
-                bool expired = Time.timeSinceLevelLoad - designation.StartedAt >= _plugin.MaxDesignationTime.Value;
+                bool missileInFlight = LaserSeekerPersistence.HasActiveMissileTracking(designation.Target);
+                if (missileInFlight)
+                {
+                    // Keep designation refreshed while an allied missile is actively guiding to it
+                    designation.StartedAt = Mathf.Max(designation.StartedAt, Time.timeSinceLevelLoad - (_plugin.MaxDesignationTime.Value * 0.5f));
+                }
+
+                bool expired = !missileInFlight && (Time.timeSinceLevelLoad - designation.StartedAt >= _plugin.MaxDesignationTime.Value);
+                // An ongoing ground designation does not require the launching aircraft to maintain receive range once fired
                 bool valid = validObservers.Contains(observer) &&
-                             IsValidPair(observer, designation.Target, aircraft, true);
+                             IsValidPair(observer, designation.Target, aircraft, false);
                 if (!valid || expired)
                 {
                     Release(observer);
@@ -247,6 +255,7 @@ namespace BLIND
 
         private static bool HasLineOfSight(Unit observer, Unit target)
         {
+            if (observer == null || target == null) return false;
             float height = observer.definition == null ? 2f : observer.definition.height;
             Vector3 origin = observer.transform.position + Vector3.up * Mathf.Max(1.5f, height * 0.55f);
             return target.LineOfSight(origin, 1000f);
@@ -281,6 +290,7 @@ namespace BLIND
                 designation.Hq.UpdateLasedState(designation.Target, false);
             }
             _active.Remove(observer);
+            BlindPlugin.LogSource.LogMessage("[B.L.I.N.D.] Ground designation by " + observer.unitName + " ended.");
         }
 
         private void ClearAll()
