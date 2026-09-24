@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.0
+
+- **JTAC Multi-Target & Naval Expansion**:
+  - Support simultaneous multi-target designation with 1-to-1 observer pairing across allied ground vehicles, defense installations, and naval combat ships.
+  - Add dedicated naval horizon parameters (`NavalLaserRange` = 15 km) with elevated superstructure Line-of-Sight origins.
+  - Multi-target HUD telemetry with per-target corner brackets and aggregated status banners.
+  - Ensure laser seeker memory and missile guidance persistence during turn-away evasion maneuvers.
+- **Explosion Overhaul & Optical Shockwaves**:
+  - Implement physics-based Hopkinson–Cranz cube-root yield scaling for explosion particle systems.
+  - Prolong lingering black smoke and dust clouds by 2.8× with smooth alpha fade-out curves and extended 120-second despawn lifecycle.
+  - Procedural supersonic optical shockwave distortion mesh with inline URP screen-space refraction and heat shimmer.
+- **Streamlined Sensor Modes**:
+  - Consolidate modes into STANDARD IR, LONGBOW, and IR BLACK.
+  - Minimalist HUD OSD without heavy borders.
+
 ## 0.4.2
 
 - Remove an invalid Missile.OnDisable patch that interrupted startup and prevented

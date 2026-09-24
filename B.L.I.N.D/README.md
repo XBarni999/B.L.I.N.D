@@ -1,7 +1,7 @@
 # B.L.I.N.D.
 
-**Best Luminescence & Infrared Navigation Device** — cockpit thermal imaging and
-friendly ground laser designation for **Nuclear Option**.
+**Best Luminescence & Infrared Navigation Device** — cockpit thermal imaging,
+allied ground/naval laser designation, and visual explosion overhaul for **Nuclear Option**.
 
 [Download](https://github.com/XBarni999/B.L.I.N.D/releases) ·
 [Report an issue](https://github.com/XBarni999/B.L.I.N.D/issues) ·
@@ -13,20 +13,28 @@ original vehicle materials keep their normal appearance.
 
 ## What it does
 
-- Two thermal palettes share an independent heat buffer. Engine hotspots use
-  the game's infrared sources; body heat responds to engine activity, movement
-  and damage. White Hot has a separate highlight ceiling.
-- Burning missile motors have a compact exhaust signature. Native fire and
-  explosion particles are rendered from camera-specific geometry snapshots,
-  with transparent edges and depth occlusion. Smoke is much cooler than flame.
-- Selecting an eligible hostile surface target can request designation from a
-  friendly ground vehicle or building. The HUD reports acquisition or why a
-  ground observer cannot designate the target. Stock laser seekers use the
-  game's laser state, including normal acquisition limits and loss of signal.
+### 1. Cockpit Thermal Imaging (FLIR)
+- **Three streamlined sensor modes**:
+  - **STANDARD IR**: Enhanced vanilla night-vision / infrared with dynamic daylight exposure balance.
+  - **LONGBOW**: Classic Ironbow high-contrast thermal palette mapping engine heat, weapon signatures, and body temperatures.
+  - **IR BLACK**: Clean White-Hot thermal profile with an adjustable soft highlight shoulder ceiling.
+- Engine hotspots use the game's native infrared signatures; body heat responds dynamically to engine activity, movement, and structural damage.
+- Burning missile motors have dedicated radiant exhaust footprints, while lingering smoke trails remain cool.
+
+### 2. Allied Ground & Naval Laser Designation (JTAC)
+- **Multi-Target Designation**: Select multiple hostile surface or naval targets in your weapon manager. Allied units will automatically and greedily pair with available targets (1 ally lases 1 target) based on proximity and line of sight.
+- **Naval Support**: Allied warships (`Ship`) can act as JTAC designators, and hostile warships can be designated. Ships utilize an extended **15 km optical horizon** and elevated superstructure sighting origins.
+- **Seeker Memory & Evasion Persistence**: When launching laser-guided weapons (e.g. AGM-48, laser bombs), the missile seeker memorizes its designated target. You can safely turn away, maneuver to evade air defenses, or deselect the target without breaking missile lock while an ally continues designation.
+- **Subtle HUD Telemetry**: Minimalist, non-intrusive corner brackets (`┌ ┐ └ ┘`) track each designated target on the HUD with exact telemetry, accompanied by a clean status banner (`JTAC [2 TGT] • 4.2 KM`).
+
+### 3. Explosion Overhaul & Optical Shockwaves (VFX)
+- **Physics-Inspired Yield Scaling**: Particle systems dynamically scale in size and volume based on TNT equivalent yield (Hopkinson–Cranz cube-root scaling $R \propto \sqrt[3]{Y}$).
+- **Prolonged Lingering Smoke**: Heavy black smoke and dust clouds billow and persist **2.8× longer** with smooth alpha fade-out curves. Native premature 30-second despawn timers are extended to 120 seconds to prevent abrupt pop-out.
+- **Supersonic Optical Shockwave**: Spawns a procedural inverted mesh sphere at the blast epicenter expanding non-linearly over 0.35–0.60s with URP screen-space refractive distortion and heat shimmer (built completely inline without external asset bundles).
 
 ## Requirements
 
-- **Windows x64**, Nuclear Option **0.34.1** (other game versions are unverified).
+- **Windows x64**, Nuclear Option **0.34.x** (compatible with 0.34.1+).
 - **BepInEx 5 for Unity Mono** installed and working.
 - Both `BLIND.dll` and `blind-thermal.bundle` from the **same release**.
 
@@ -38,7 +46,7 @@ repository are separate mods and are not included in the BLIND download.
 1. Close the game.
 2. When updating, back up the old BLIND DLL and bundle **outside** `BepInEx/plugins`,
    then remove those old copies. Keep exactly one installed `BLIND.dll`.
-3. Extract `BLIND-v0.4.2.zip` into the game folder. The resulting files should be:
+3. Extract `BLIND.zip` into the game folder. The resulting files should be:
 
 ```text
 Nuclear Option/
@@ -56,53 +64,32 @@ To uninstall, close the game and remove the two BLIND files.
 
 ## Multiplayer and JTAC
 
-Sensor modes are local visual changes. JTAC requires host authority and is driven
-by the **host player's local aircraft**; this release does not provide autonomous
-JTAC on a headless dedicated server. Client-only installation provides the sensor
-modes but cannot create ground designations.
-
-By default, the ground observer must be within **4 km** of the target with valid
-line of sight, and the aircraft within **15 km** receive range. The observer has a
-20-second designation window and a 12-second cooldown. A friendly observer is not
-a guarantee of acquisition: range, terrain, observer availability and the weapon's
-own seeker limits still apply.
+Sensor modes and explosion overhauls are local client visual improvements. JTAC designation requires host authority and is driven by the **host player's local aircraft**; client-only installations enjoy thermal imaging and VFX overhauls but cannot originate JTAC designations.
 
 ## Configuration
 
-Edit the config with the game closed, or use BepInEx Configuration Manager.
-Existing config values are preserved when updating.
+Edit `BepInEx/config/ua.ncmod.blind.cfg` with the game closed, or use the BepInEx Configuration Manager.
 
 | Setting | Default | Purpose |
 |---|---:|---|
-| `Sensors.CycleModeKey` | `F7` | Change sensor mode |
-| `Sensors.ThermalSpan` | `1.25` | Heat display range; lower gives stronger contrast |
-| `Sensors.ThermalNoise` | `0.008` | Fine detector noise; use `0` for a clean image |
-| `Sensors.WhiteHotCeiling` | `0.86` | White Hot highlight brightness cap |
-| `JTAC.Enabled` | `true` | Ground designation on the host |
-| `JTAC.GroundLaserRange` | `4000` | Observer-to-target limit in metres |
-| `JTAC.AircraftReceiveRange` | `15000` | Aircraft receive limit in metres |
+| **Sensors** | | |
+| `Sensors.CycleModeKey` | `F7` | Keybind to cycle sensor modes |
+| `Sensors.ThermalSpan` | `1.25` | Heat display dynamic range; lower gives stronger contrast |
+| `Sensors.ThermalNoise` | `0.008` | Fine detector noise; set to `0` for pristine digital image |
+| `Sensors.WhiteHotCeiling` | `0.86` | Maximum highlight brightness in IR BLACK |
+| **JTAC** | | |
+| `JTAC.Enabled` | `true` | Enable allied ground and naval laser designation on host |
+| `JTAC.GroundLaserRange` | `4000` | Maximum observer-to-target designation range for ground vehicles (m) |
+| `JTAC.NavalLaserRange` | `15000` | Maximum observer-to-target designation range for naval ships (m) |
+| `JTAC.AircraftReceiveRange` | `18000` | Maximum aircraft datalink cue range (m) |
 | `JTAC.MaxDesignationTime` | `20` | Continuous designation time in seconds |
-| `JTAC.DesignatorCooldown` | `12` | Observer cooldown in seconds |
-| `JTAC.MaxConcurrentDesignations` | `4` | Maximum simultaneous designations |
-
-## Limits and troubleshooting
-
-This is a **visual approximation**, not a temperature-measuring simulation.
-Terrain uses a compressed visible-image estimate; emissivity, infrared reflection
-and smoke transmission are not physically simulated. Some custom weapon/effect
-shaders may need specific support. Tiny missiles also depend on the target screen's
-resolution and viewing angle. Fixed gain avoids whole-frame pumping during flashes.
-
-- **No thermal modes:** verify that the cockpit target camera is active and there
-  is only one BLIND installation. Check `BepInEx/LogOutput.log` for `[Thermal]`.
-- **Shader unavailable / pink image:** reinstall the matching DLL and bundle.
-  An unavailable shader disables the thermal pass rather than changing scene materials.
-- **White Hot too bright:** lower `WhiteHotCeiling`; for all palettes, increase
-  `ThermalSpan` to reduce contrast. These controls do different jobs.
-- **JTAC HOST ONLY:** the local machine does not have authority to designate.
-- **Visual issue:** include the game/mod version, aircraft, weapon, sensor mode,
-  screenshot or short clip, and relevant BLIND log lines. Avoid sharing an entire
-  log if it contains private connection details.
+| `JTAC.DesignatorCooldown` | `12` | Observer cooldown after designation cycle in seconds |
+| `JTAC.MaxConcurrentDesignations` | `4` | Maximum simultaneous allied designations |
+| **Explosions** | | |
+| `Explosions.Enabled` | `true` | Enable dynamic explosion scaling and prolonged smoke |
+| `Explosions.SmokePersistenceMultiplier` | `2.8` | Lifetime multiplier for lingering black smoke and dust |
+| `Explosions.ShockwaveDistortion` | `true` | Enable procedural optical refraction shockwave at epicenter |
+| `Explosions.ShockwaveIntensity` | `1.0` | Strength of screen-space optical distortion |
 
 ## Build
 
@@ -120,10 +107,6 @@ redistributed. The prebuilt shader bundle is included. To rebuild it, open
 ```powershell
 Unity.exe -batchmode -quit -projectPath "<absolute path>/B.L.I.N.D/ShaderProject" -executeMethod BuildThermal.Build -logFile "<build log>"
 ```
-
-Run `ThermalRegression.Run` instead of `BuildThermal.Build` for GPU regressions;
-do **not** pass `-nographics` for those tests. The game runtime compatibility must
-also be checked when changing the shader bundle or editor version.
 
 Create the distribution archive with `B.L.I.N.D/tools/Package.ps1`.
 See [validation notes](VALIDATION.md) for the checks and their limits.
