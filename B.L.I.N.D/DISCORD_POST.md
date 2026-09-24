@@ -1,25 +1,17 @@
-**B.L.I.N.D. 0.4.2 — cockpit FLIR + ground laser designation**
+**B.L.I.N.D. 0.5.0 — cockpit FLIR, multi-target/naval JTAC & explosion overhaul**
 
-Test build: GPU regressions and 18 native explosion renders passed; broader
-in-mission and multiplayer testing is still needed.
+Adds **STANDARD IR, LONGBOW and IR BLACK** to the cockpit target screen in
+Nuclear Option, allied ground and naval laser designation (JTAC), and a visual explosion overhaul. Cycle sensor modes with **F7** (rebindable).
 
-Adds **Ironbow, White Hot, Black Hot and NVG** to the cockpit target screen in
-Nuclear Option. Cycle modes with **F7** (rebindable).
+- **Thermal Imaging**: Three clean, high-contrast modes with engine hotspots and missile signatures.
+- **JTAC Designation**: Allied ground vehicles and warships (`Ship`) can lase surface/naval targets (1-to-1 pairing, naval range up to 15km). Seeker lock persists even if you turn away to evade!
+- **Explosion Overhaul**: Real cube-root blast scaling, 2.8x prolonged lingering smoke clouds, and procedural supersonic optical shockwave distortion.
 
-Thermal imaging uses its own heat buffer, with engine hotspots, missile motor
-signatures and native fire/explosion effects. This update reworks particle
-rendering and depth handling to address flickering and malformed explosions,
-and softens White Hot highlights.
-
-The JTAC feature lets eligible friendly ground units designate a selected hostile
-surface target for stock laser-guided weapons. JTAC requires the host player's
-aircraft; visual sensor modes also work on clients.
-
-**Requirements:** Windows x64, Nuclear Option 0.34.1, BepInEx 5 (Mono).
-**Install:** close the game, extract the ZIP into the game folder, and keep only
+**Requirements:** Windows x64, Nuclear Option 0.34.x, BepInEx 5 (Mono).
+**Install:** Close the game, extract the ZIP into the game folder, and keep only
 one copy of `BLIND.dll`. The DLL and `blind-thermal.bundle` must stay together.
 
-Download: https://github.com/XBarni999/B.L.I.N.D/releases/tag/v0.4.2
+Download: https://github.com/XBarni999/B.L.I.N.D/releases/tag/v0.5.0
 Source / feedback: https://github.com/XBarni999/B.L.I.N.D
 
 Thermal signatures are approximations, not measured temperatures. If reporting

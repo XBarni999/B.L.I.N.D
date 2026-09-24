@@ -12,7 +12,7 @@ namespace BLIND
     {
         public const string PluginGuid = "ua.ncmod.blind";
         public const string PluginName = "B.L.I.N.D. - Best Luminescence & Infrared Navigation Device";
-        public const string PluginVersion = "0.4.3";
+        public const string PluginVersion = "0.5.0";
 
         internal static ManualLogSource LogSource;
         internal static BlindPlugin Instance;
