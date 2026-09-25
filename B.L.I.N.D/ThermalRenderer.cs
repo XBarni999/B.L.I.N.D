@@ -183,7 +183,11 @@ namespace BLIND
                 // Active ground units (AA, missile launchers, tanks, IFVs) run generators and diesel/gas turbines continuously
                 heat = 0.58f + Mathf.Clamp01(unit.speed / 10f) * 0.30f;
             }
-            else if (unit is Ship) heat = 0.45f;
+            else if (unit is Ship)
+            {
+                // A working ship has warm machinery and a sun-warmed hull; sea foam is cooler.
+                heat = 0.48f + Mathf.Clamp01(unit.speed / 15f) * 0.08f;
+            }
             else if (unit is Missile)
             {
                 Missile m = (Missile)unit;
@@ -232,6 +236,12 @@ namespace BLIND
                 positions[0] = new Vector4(p.x,p.y,p.z,Mathf.Clamp(size*0.28f,0.8f,3.0f));
                 powers[0] = new Vector4(Mathf.Max(0.2f, body.Heat - 0.15f) * 2.2f, 0, 0, 0);
             }
+            if (count == 0 && unit is Ship && !unit.disabled)
+            {
+                Vector3 p = unit.transform.TransformPoint(new Vector3(0, size * 0.08f, -size * 0.18f));
+                positions[0] = new Vector4(p.x, p.y, p.z, Mathf.Clamp(size * 0.12f, 2f, 8f));
+                powers[0] = new Vector4(0.32f, 0, 0, 0);
+            }
             cmd.SetGlobalVectorArray("_BlindHeatSources", positions);
             cmd.SetGlobalVectorArray("_BlindHeatPowers", powers);
         }
@@ -243,6 +253,7 @@ namespace BLIND
             Material[] originals = r.sharedMaterials;
             surface = new Surface { Originals = originals, Materials = new Material[originals.Length] };
             string name = r.name.ToLowerInvariant();
+            bool shipPart = r.GetComponentInParent<Ship>() != null;
             for (int n=0; n<originals.Length; n++)
             {
                 var original = originals[n];
@@ -264,7 +275,8 @@ namespace BLIND
                 bool particle = r is ParticleSystemRenderer || r is TrailRenderer;
                 material.SetFloat("_BlindUseAlpha", particle || original.IsKeywordEnabled("_ALPHATEST_ON") ? 1f : 0f);
                 material.SetFloat("_BlindCutoff", particle ? 0.05f : (original.HasProperty("_Cutoff") ? original.GetFloat("_Cutoff") : 0.5f));
-                material.SetFloat("_BlindDetailAmount", particle ? 0 : 0.22f);
+                material.SetFloat("_BlindDetailAmount", particle ? 0 : (shipPart ? 0.58f : 0.22f));
+                material.SetFloat("_BlindShipDetail", shipPart && !particle ? 1f : 0f);
                 surface.Materials[n] = material;
                 name += " " + original.name.ToLowerInvariant();
                 // Alpha-blended textures use alpha; additive textures use RGB as their shape.
@@ -273,7 +285,10 @@ namespace BLIND
             }
 
             // Exclude non-thermal and flat ground overlays that cause Z-fighting (ground decals, optical flashes, shockwaves)
-            bool isNonThermal = name.Contains("shockwave") || name.Contains("distortion") ||
+            bool shipWake = r.GetComponentInParent<Ship>() != null &&
+                            (name.Contains("wake") || name.Contains("foam") || name.Contains("spray") ||
+                             name.Contains("water") || name.Contains("wash") || name.Contains("splash"));
+            bool isNonThermal = shipWake || name.Contains("shockwave") || name.Contains("distortion") ||
                                 name.Contains("refract") || name.Contains("decal") || name.Contains("crater") ||
                                 name.Contains("scorch") || name.Contains("dust") || name.Contains("dirt") ||
                                 name.Contains("rubble") || name.Contains("debris") || name.Contains("vapor") ||
@@ -335,6 +350,8 @@ namespace BLIND
                 Missile missile = unit as Missile;
                 if (missile != null && !missile.disabled && missile.EngineOn()) burningMissiles.Add(missile);
                 SetSources(cmd,unit,body);
+                float shipLength = unit.definition == null ? 40f : Mathf.Max(1f, unit.definition.length);
+                cmd.SetGlobalVector("_BlindShipProfile", new Vector4(unit.transform.position.y, Mathf.Max(4f, shipLength * 0.12f), 0, 0));
                 cmd.SetGlobalFloat("_BlindBodyHeat",body.Heat);
                 cmd.SetGlobalFloat("_BlindEffect",0);
                 if (body.Renderers != null)

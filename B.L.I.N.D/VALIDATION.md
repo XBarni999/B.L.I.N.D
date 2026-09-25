@@ -1,4 +1,11 @@
-# Validation — 0.4.2
+# Validation — 0.5.2
+
+The 0.5.2 water and naval contrast changes compile, the shader bundle builds in Unity
+6000.2.7f2, and the full GPU regression passes (palettes, particle spaces,
+effect pixels and depth occlusion). The moving-ship FLIR image still requires
+an in-mission acceptance check. BLIND no longer patches vanilla explosion VFX.
+
+The detailed native render results below are from 0.4.2.
 
 Tested on Windows with Nuclear Option 0.34.1, BepInEx 5 Mono and Direct3D 11.
 

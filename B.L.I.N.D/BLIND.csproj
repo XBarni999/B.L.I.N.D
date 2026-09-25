@@ -7,7 +7,7 @@
     <RootNamespace>BLIND</RootNamespace>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <GameDir Condition="'$(GameDir)' == ''">F:\Games\Nuclear.Option.v0.34.1</GameDir>
-    <Version>0.5.0</Version>
+    <Version>0.5.2</Version>
     <Description>Isolated cockpit thermal imaging and ground laser designation for Nuclear Option.</Description>
   </PropertyGroup>
 

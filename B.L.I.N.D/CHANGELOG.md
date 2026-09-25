@@ -1,7 +1,21 @@
 # Changelog
 
+## 0.5.2
+
+- Keep sunset and reflection HDR out of the thermal background to prevent orange sky and water blowout.
+- Restore visible cool water separation, including transparent water that leaves far-plane depth.
+- Reduce ship baseline heat and machinery hotspot while preserving hull texture and silhouette.
+
+
+## 0.5.1
+
+- Improve naval FLIR readability with stronger hull relief, material detail and a warm superstructure at range.
+- Remove BLIND's explosion scaling, extended smoke lifetime and optical shockwave. Vanilla explosion visuals remain intact.
+
 ## 0.5.0
 
+- Give moving ships a readable warm hull and a localized machinery hotspot in FLIR.
+- Keep ship wake and foam cool; reserve background thermal bloom for HDR fire and flashes.
 - **JTAC Multi-Target & Naval Expansion**:
   - Support simultaneous multi-target designation with 1-to-1 observer pairing across allied ground vehicles, defense installations, and naval combat ships.
   - Add dedicated naval horizon parameters (`NavalLaserRange` = 15 km) with elevated superstructure Line-of-Sight origins.

@@ -14,7 +14,8 @@ Shader "Hidden/BLIND/Thermal"
         float4 _BlindHeatSources[8];
         float4 _BlindHeatPowers[8];
         float _BlindBodyHeat, _BlindDetailAmount, _BlindCutoff, _BlindUseAlpha, _BlindEffect;
-        float _BlindAdditiveShape;
+        float _BlindAdditiveShape, _BlindShipDetail;
+        float4 _BlindShipProfile;
         float _BlindMode, _BlindSpan, _BlindNoise, _BlindAtmosphere, _BlindWhiteHotCeiling;
         struct Attributes { float4 vertex:POSITION; float3 normal:NORMAL; float2 uv:TEXCOORD0; float4 color:COLOR; };
         struct Varyings { float4 position:SV_POSITION; float2 uv:TEXCOORD0; float3 world:TEXCOORD1; float3 normal:TEXCOORD2; float4 screen:TEXCOORD3; float eye:TEXCOORD4; float4 color:COLOR; };
@@ -73,33 +74,34 @@ Shader "Hidden/BLIND/Thermal"
             float3 safeNormal = i.normal * rsqrt(max(dot(i.normal,i.normal),0.0001));
             float facing = abs(dot(safeNormal, normalize(_WorldSpaceCameraPos-i.world)));
             // Top surfaces receive solar and sky radiation, underside remains cooler; geometric facets stand out in FLIR
-            float solarSky = safeNormal.y * 0.12;
-            heat *= 1.0 + (textureDetail-0.5)*_BlindDetailAmount + (facing-0.5)*0.10 + solarSky;
-            float transmission = exp(-i.eye * (0.000016 + _BlindAtmosphere*0.00010));
-            return lerp(0.085, max(0.02,heat), transmission);
+            float solarSky = safeNormal.y * lerp(0.12, 0.18, _BlindShipDetail);
+            float relief = (facing - 0.5) * lerp(0.10, 0.30, _BlindShipDetail);
+            heat *= 1.0 + (textureDetail-0.5)*_BlindDetailAmount + relief + solarSky;
+            // Machinery warms the superstructure without flattening the cooler hull plating.
+            float deckHeight = saturate((i.world.y - _BlindShipProfile.x) / max(1.0, _BlindShipProfile.y));
+            heat += _BlindShipDetail * deckHeight * 0.14;
+            // Resolve large naval targets through haze while retaining normal atmospheric falloff elsewhere.
+            float transmission = exp(-i.eye * (0.000016 + _BlindAtmosphere*lerp(0.00010, 0.000070, _BlindShipDetail)));
+            return lerp(0.11, max(0.02,heat), transmission);
         }
         float Background(v2f_img i):SV_Target {
             float depth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.uv);
             float distance = LinearEyeDepth(depth);
+            float3 sceneColor = tex2D(_MainTex, i.uv).rgb;
+            // Transparent water can leave the far-plane depth intact. Its blue
+            // source color still distinguishes it from the cold sky.
+            float blueWater = saturate((sceneColor.b - sceneColor.r * 1.08) * 1.8);
             bool isSky = distance > _ProjectionParams.z * 0.98;
             if (isSky) {
-                // Sky is cold deep space/atmosphere with subtle natural horizon warmth
                 float skyCold = 0.025 + 0.015 * saturate(1.0 - i.uv.y);
-                return skyCold;
+                return lerp(skyCold, 0.14, blueWater);
             }
-            float3 sceneColor = tex2D(_MainTex, i.uv).rgb;
             float lum = dot(sceneColor, float3(0.2126, 0.7152, 0.0722));
-            // Filmic rational compression: prevents sunlit concrete runways, bridge decks and buildings from blinding the FLIR sensor
-            float compressedLum = lum / (1.0 + lum * 3.2);
-            float terrainHeat = 0.045 + compressedLum * 0.11;
-
-            // Authentic vanilla explosion response: intense visual fireballs and flashes (HDR lum > 0.65)
-            // contribute rich, hot radiant heat without artificial sprite cutout artifacts.
-            float explosionBloom = saturate((lum - 0.65) * 1.8);
-            terrainHeat += explosionBloom * 1.85;
-
-            // Distant terrain fades toward ambient atmospheric temperature while preserving horizon contrast against the cold sky
-            return lerp(0.065, terrainHeat, exp(-distance * (0.000018 + _BlindAtmosphere * 0.00010)));
+            // Background HDR from sunset and reflections must never look like a
+            // burning ship. Actual flames are drawn by the separate heat pass.
+            float compressedLum = min(lum, 1.0) / (1.0 + min(lum, 1.0) * 3.2);
+            float terrainHeat = 0.13 + compressedLum * 0.12;
+            return lerp(0.11, terrainHeat, exp(-distance * (0.000018 + _BlindAtmosphere * 0.00010)));
         }
         float3 Iron(float t) {
             float3 a=float3(0.012,0.006,0.022), b=float3(0.18,0.020,0.30);

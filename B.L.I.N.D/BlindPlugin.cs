@@ -12,7 +12,7 @@ namespace BLIND
     {
         public const string PluginGuid = "ua.ncmod.blind";
         public const string PluginName = "B.L.I.N.D. - Best Luminescence & Infrared Navigation Device";
-        public const string PluginVersion = "0.5.0";
+        public const string PluginVersion = "0.5.2";
 
         internal static ManualLogSource LogSource;
         internal static BlindPlugin Instance;
@@ -28,10 +28,6 @@ namespace BLIND
         internal ConfigEntry<float> MaxDesignationTime;
         internal ConfigEntry<float> DesignatorCooldown;
         internal ConfigEntry<int> MaxConcurrentDesignations;
-        internal ConfigEntry<bool> EnableExplosionOverhaul;
-        internal ConfigEntry<float> SmokePersistenceMultiplier;
-        internal ConfigEntry<bool> EnableShockwaveDistortion;
-        internal ConfigEntry<float> ShockwaveIntensity;
 
         private Harmony _harmony;
         private BlindRuntime _runtime;
@@ -69,17 +65,6 @@ namespace BLIND
             MaxConcurrentDesignations = Config.Bind("JTAC", "MaxConcurrentDesignations", 4,
                 new ConfigDescription("Maximum simultaneous ground designations for the local faction.",
                     new AcceptableValueRange<int>(1, 16)));
-            EnableExplosionOverhaul = Config.Bind("Explosions", "Enabled", true,
-                "Overhaul explosion VFX with dynamic scaling and prolonged lingering smoke.");
-            SmokePersistenceMultiplier = Config.Bind("Explosions", "SmokePersistenceMultiplier", 2.8f,
-                new ConfigDescription("Lifetime multiplier for lingering smoke and dust clouds.",
-                    new AcceptableValueRange<float>(1.0f, 4.0f)));
-            EnableShockwaveDistortion = Config.Bind("Explosions", "ShockwaveDistortion", true,
-                "Spawn a procedural optical refraction shockwave at the blast epicenter.");
-            ShockwaveIntensity = Config.Bind("Explosions", "ShockwaveIntensity", 1.0f,
-                new ConfigDescription("Intensity of optical screen distortion for shockwaves.",
-                    new AcceptableValueRange<float>(0.2f, 2.5f)));
-
             _runtime = gameObject.AddComponent<BlindRuntime>();
             _runtime.Initialize(this);
 

@@ -1,7 +1,7 @@
 # B.L.I.N.D.
 
 **Best Luminescence & Infrared Navigation Device** — cockpit thermal imaging,
-allied ground/naval laser designation, and visual explosion overhaul for **Nuclear Option**.
+and allied ground/naval laser designation for **Nuclear Option**.
 
 [Download](https://github.com/XBarni999/B.L.I.N.D/releases) ·
 [Report an issue](https://github.com/XBarni999/B.L.I.N.D/issues) ·
@@ -27,19 +27,13 @@ original vehicle materials keep their normal appearance.
 - **Seeker Memory & Evasion Persistence**: When launching laser-guided weapons (e.g. AGM-48, laser bombs), the missile seeker memorizes its designated target. You can safely turn away, maneuver to evade air defenses, or deselect the target without breaking missile lock while an ally continues designation.
 - **Subtle HUD Telemetry**: Minimalist, non-intrusive corner brackets (`┌ ┐ └ ┘`) track each designated target on the HUD with exact telemetry, accompanied by a clean status banner (`JTAC [2 TGT] • 4.2 KM`).
 
-### 3. Explosion Overhaul & Optical Shockwaves (VFX)
-- **Physics-Inspired Yield Scaling**: Particle systems dynamically scale in size and volume based on TNT equivalent yield (Hopkinson–Cranz cube-root scaling $R \propto \sqrt[3]{Y}$).
-- **Prolonged Lingering Smoke**: Heavy black smoke and dust clouds billow and persist **2.8× longer** with smooth alpha fade-out curves. Native premature 30-second despawn timers are extended to 120 seconds to prevent abrupt pop-out.
-- **Supersonic Optical Shockwave**: Spawns a procedural inverted mesh sphere at the blast epicenter expanding non-linearly over 0.35–0.60s with URP screen-space refractive distortion and heat shimmer (built completely inline without external asset bundles).
-
 ## Requirements
 
 - **Windows x64**, Nuclear Option **0.34.x** (compatible with 0.34.1+).
 - **BepInEx 5 for Unity Mono** installed and working.
 - Both `BLIND.dll` and `blind-thermal.bundle` from the **same release**.
 
-BLIND is standalone. The trainer and torpedo sources also present in this
-repository are separate mods and are not included in the BLIND download.
+BLIND is standalone. Its repository and release contain only BLIND files.
 
 ## Install or update
 
@@ -64,7 +58,7 @@ To uninstall, close the game and remove the two BLIND files.
 
 ## Multiplayer and JTAC
 
-Sensor modes and explosion overhauls are local client visual improvements. JTAC designation requires host authority and is driven by the **host player's local aircraft**; client-only installations enjoy thermal imaging and VFX overhauls but cannot originate JTAC designations.
+Sensor modes are local client visual improvements. JTAC designation requires host authority and is driven by the **host player's local aircraft**; client-only installations retain thermal imaging but cannot originate JTAC designations. Vanilla explosion effects are unchanged.
 
 ## Configuration
 
@@ -85,11 +79,6 @@ Edit `BepInEx/config/ua.ncmod.blind.cfg` with the game closed, or use the BepInE
 | `JTAC.MaxDesignationTime` | `20` | Continuous designation time in seconds |
 | `JTAC.DesignatorCooldown` | `12` | Observer cooldown after designation cycle in seconds |
 | `JTAC.MaxConcurrentDesignations` | `4` | Maximum simultaneous allied designations |
-| **Explosions** | | |
-| `Explosions.Enabled` | `true` | Enable dynamic explosion scaling and prolonged smoke |
-| `Explosions.SmokePersistenceMultiplier` | `2.8` | Lifetime multiplier for lingering black smoke and dust |
-| `Explosions.ShockwaveDistortion` | `true` | Enable procedural optical refraction shockwave at epicenter |
-| `Explosions.ShockwaveIntensity` | `1.0` | Strength of screen-space optical distortion |
 
 ## Build
 
