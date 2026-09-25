@@ -279,6 +279,7 @@ namespace BLIND
                 material.SetFloat("_BlindShipDetail", shipPart && !particle ? 1f : 0f);
                 surface.Materials[n] = material;
                 name += " " + original.name.ToLowerInvariant();
+                if (original.shader != null) name += " " + original.shader.name.ToLowerInvariant();
                 // Alpha-blended textures use alpha; additive textures use RGB as their shape.
                 bool additive = original.HasProperty("_DstBlend") && original.GetFloat("_DstBlend") == (float)BlendMode.One;
                 material.SetFloat("_BlindAdditiveShape", additive ? 1f : 0f);
@@ -287,7 +288,8 @@ namespace BLIND
             // Exclude non-thermal and flat ground overlays that cause Z-fighting (ground decals, optical flashes, shockwaves)
             bool shipWake = r.GetComponentInParent<Ship>() != null &&
                             (name.Contains("wake") || name.Contains("foam") || name.Contains("spray") ||
-                             name.Contains("water") || name.Contains("wash") || name.Contains("splash"));
+                             name.Contains("water") || name.Contains("ocean") ||
+                             name.Contains("wash") || name.Contains("splash"));
             bool isNonThermal = shipWake || name.Contains("shockwave") || name.Contains("distortion") ||
                                 name.Contains("refract") || name.Contains("decal") || name.Contains("crater") ||
                                 name.Contains("scorch") || name.Contains("dust") || name.Contains("dirt") ||
@@ -296,6 +298,7 @@ namespace BLIND
 
             if (isNonThermal)
             {
+                surface.Disabled = true;
                 surface.EffectHeat = 0f;
                 surfaces.Add(r, surface);
                 return surface;
@@ -361,7 +364,11 @@ namespace BLIND
                         if (!Visible(r)) continue;
                         if (r is ParticleSystemRenderer || r is TrailRenderer) { effects.Add(r); continue; }
                         if (!(r is MeshRenderer) && !(r is SkinnedMeshRenderer)) continue;
+                        // Some ship prefabs include huge wake/sea meshes under the
+                        // Ship hierarchy. Their triangles are not hull geometry.
+                        if (unit is Ship && r.bounds.size.magnitude > shipLength * 2.5f) continue;
                         var surface = GetSurface(r);
+                        if (surface.Disabled) continue;
                         for (int sub=0; sub<surface.Materials.Length; sub++)
                             if (surface.Materials[sub] != null) cmd.DrawRenderer(r,surface.Materials[sub],sub,1);
                     }
@@ -385,6 +392,7 @@ namespace BLIND
                             if (r is ParticleSystemRenderer || r is TrailRenderer) { effects.Add(r); continue; }
                             if (!(r is MeshRenderer) && !(r is SkinnedMeshRenderer)) continue;
                             var surface = GetSurface(r);
+                            if (surface.Disabled) continue;
                             for (int sub = 0; sub < surface.Materials.Length; sub++)
                                 if (surface.Materials[sub] != null) cmd.DrawRenderer(r, surface.Materials[sub], sub, 1);
                         }

@@ -1,9 +1,16 @@
-# Validation — 0.5.2
+# Validation — 0.5.3
 
-The 0.5.2 water and naval contrast changes compile, the shader bundle builds in Unity
-6000.2.7f2, and the full GPU regression passes (palettes, particle spaces,
-effect pixels and depth occlusion). The moving-ship FLIR image still requires
-an in-mission acceptance check. BLIND no longer patches vanilla explosion VFX.
+The 0.5.3 renderer filtering compiles. It excludes ship wake and water meshes
+from the ship drawing pass and rejects child meshes much larger than the ship.
+This addresses the hot triangles seen around an intact battleship in the
+cockpit screenshot, but the moving-ship FLIR image still requires an in-mission
+acceptance check. The unchanged shader bundle was built in Unity 6000.2.7f2
+and passed the 0.5.2 GPU regression (palettes, particle spaces, effect pixels
+and depth occlusion). BLIND no longer patches vanilla explosion VFX.
+
+A short Nuclear Option 0.34.1 Direct3D 11 startup loaded BLIND 0.5.3 and
+reported the four-pass thermal shader and native IRSource integration. It did
+not enter a mission or verify the battleship view.
 
 The detailed native render results below are from 0.4.2.
 

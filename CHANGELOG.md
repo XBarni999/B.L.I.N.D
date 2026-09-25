@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.3
+
+- Exclude ship wake, foam and water meshes from the thermal ship draw pass.
+- Reject oversized ship child meshes that produce hot triangles across the sensor view.
+
 ## 0.5.2
 
 - Keep sunset and reflection HDR out of the thermal background to prevent orange sky and water blowout.
