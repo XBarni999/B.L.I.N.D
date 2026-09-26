@@ -1,57 +1,25 @@
-# Validation — 0.5.3
+# Validation — 0.6.0
 
-The 0.5.3 renderer filtering compiles. It excludes ship wake and water meshes
-from the ship drawing pass and rejects child meshes much larger than the ship.
-This addresses the hot triangles seen around an intact battleship in the
-cockpit screenshot, but the moving-ship FLIR image still requires an in-mission
-acceptance check. The unchanged shader bundle was built in Unity 6000.2.7f2
-and passed the 0.5.2 GPU regression (palettes, particle spaces, effect pixels
-and depth occlusion). BLIND no longer patches vanilla explosion VFX.
+The sensor has two modes. STANDARD IR uses the game's target camera settings.
+IRONBOW uses the same camera settings plus a Unity URP `ColorLookup` generated
+at runtime. There is no custom heat or geometry rendering path.
 
-A short Nuclear Option 0.34.1 Direct3D 11 startup loaded BLIND 0.5.3 and
-reported the four-pass thermal shader and native IRSource integration. It did
-not enter a mission or verify the battleship view.
+## Build checks
 
-The detailed native render results below are from 0.4.2.
+- Build `BLIND.csproj` in Release with the installed Nuclear Option 0.34.1 assemblies.
+- Confirm the distributable contains only `BLIND.dll`; the old
+  `blind-thermal.bundle` is not loaded or shipped.
+- Confirm `ColorLookup.ValidateLUT()` requirements from the installed URP
+  assembly: a linear 2D strip with width `lutSize * lutSize` and height
+  `lutSize`. The runtime reads `lutSize` from the active URP asset.
 
-Tested on Windows with Nuclear Option 0.34.1, BepInEx 5 Mono and Direct3D 11.
+## Gameplay acceptance still required
 
-## Automated GPU checks
+In an aircraft, compare the same target at the same zoom before and after F7.
+The silhouette, clouds, terrain, reticle and effects should have the same
+shapes and motion in both modes; only the scene colors should differ. Check a
+near aircraft, a distant radar station, a bright sky/cloud view, and a missile
+launch. Toggle back to STANDARD IR and confirm the original appearance returns.
 
-- Palette monotonicity, retained highlights, dark background and palette isolation passed.
-- Native particle mesh baking passed for local, world and custom simulation spaces,
-  including rotated/scaled origins.
-- Particle pixels were finite, alpha edges remained transparent, and the effect
-  occupied a bounded area (988 pixels in the test). Geometry in front completely
-  occluded it (zero visible pixels).
-- The shader asset bundle built successfully.
-
-## Native game render check
-
-An opt-in diagnostic build rendered the game's `explosion_100kg_dusty` prefab
-from AGM_heavy through BLIND in the actual game renderer. It captured 18 images:
-Ironbow, White Hot and Black Hot at 0.05, 0.15, 0.35, 0.7, 1.5 and 3 seconds.
-Repeated renders of each unchanged scene had zero changed pixels with detector
-noise disabled; no shader-error magenta was detected. Early fireball detail was
-visually inspected in the saved images. The native fire particles fade rapidly;
-excluded cold dust is intentionally not turned into a persistent hot cloud.
-
-Startup installed all patches successfully and reported immediate registration
-at six native explosion spawn sites. The release assembly excludes the probe.
-
-These are isolated rendering checks, not a complete in-mission acceptance test.
-Moving cockpit cameras, every weapon/effect, missile launches, multiplayer JTAC,
-long-session performance and other game versions still need gameplay coverage.
-The GitHub build is marked as a prerelease for that reason.
-
-## Reproduce
-
-Run the Unity shader project with `-batchmode -force-d3d11 -quit` and
-`-executeMethod ThermalRegression.Run`. Do not use `-nographics` for GPU tests.
-
-For the native probe, build the C# project with
-`-p:DefineConstants=BLIND_DIAGNOSTICS -p:OutputPath=bin/Diagnostics/`, install that
-DLL and its shader bundle temporarily, and launch the game with
-`--blind-render-test`. The probe writes `BLIND-test-output` beside the plugin and
-quits the game. Restore the ordinary Release DLL after testing; never distribute
-the diagnostic assembly.
+JTAC designation, seeker behavior, and multiplayer authority require their
+own gameplay checks; this palette change does not modify those systems.

@@ -15,13 +15,8 @@ $stage = Join-Path $dist ("BLIND-v$version-" + (Get-Date -Format 'yyyyMMdd-HHmms
 $plugin = Join-Path $stage 'BepInEx\plugins\BLIND'
 New-Item -ItemType Directory -Force $plugin | Out-Null
 $assembly = Join-Path $project 'bin\Release\BLIND.dll'
-$bundle = Join-Path $project 'bin\Release\blind-thermal.bundle'
-if (!(Test-Path $bundle)) { throw 'Shader bundle missing from build output' }
-# Refuse to distribute a diagnostic build accidentally copied into Release.
-$dllText = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($assembly))
-if ($dllText.Contains('ThermalRuntimeProbe')) { throw 'Diagnostic assembly cannot be packaged' }
+if (!(Test-Path $assembly)) { throw 'BLIND.dll missing from build output' }
 Copy-Item -LiteralPath $assembly -Destination $plugin
-Copy-Item -LiteralPath $bundle -Destination $plugin
 Copy-Item -LiteralPath (Join-Path $project 'README.md') -Destination (Join-Path $stage 'README.md')
 Copy-Item -LiteralPath (Join-Path $project 'CHANGELOG.md') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $project 'VALIDATION.md') -Destination $stage

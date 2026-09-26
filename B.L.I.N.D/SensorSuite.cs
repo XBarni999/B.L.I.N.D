@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
@@ -11,257 +10,181 @@ namespace BLIND
     internal enum SensorMode
     {
         VanillaIR,
-        FlirIronbow,
-        FlirWhiteHot
+        Ironbow
     }
 
+    // Both modes use the game's own target camera and IR image. Ironbow only
+    // changes the final color grade of that image in its local VolumeProfile.
     internal sealed class SensorSuite
     {
         private static readonly FieldInfo CameraField = AccessTools.Field(typeof(TargetCam), "cam");
         private static readonly FieldInfo VolumeField = AccessTools.Field(typeof(TargetCam), "screenVolume");
         private static readonly FieldInfo IrModeField = AccessTools.Field(typeof(TargetCam), "IRMode");
-        private readonly BlindPlugin _plugin;
-        private readonly ThermalRenderer _thermal;
-        private VolumeProfile _originalProfile;
-        private TargetCam _targetCam;
-        private Camera _camera;
-        private Volume _volume;
-        private VolumeProfile _profile;
-        private ColorAdjustments _color;
-        private Bloom _bloom;
-        private FilmGrain _grain;
-        private ColorLookup _lookup;
-        private bool _subscribed;
-        private bool _bloomOriginalActive;
-        private float _bloomOriginalIntensity;
-        private float _bloomOriginalThreshold;
-        private bool _grainOriginalActive;
-        private float _grainOriginalIntensity;
-        private float _modeMessageUntil;
-        private float _modeMessageStartedAt;
+        private readonly BlindPlugin plugin;
+        private TargetCam targetCam;
+        private Volume volume;
+        private VolumeProfile originalProfile;
+        private VolumeProfile profile;
+        private ColorAdjustments color;
+        private ColorLookup lookup;
+        private Texture2D ironbowLut;
+        private float messageUntil;
+        private float messageStarted;
+        private bool warnedLut;
 
         internal SensorMode Mode { get; private set; }
-        internal string ModeLabel
-        {
-            get
-            {
-                switch (Mode)
-                {
-                    case SensorMode.VanillaIR: return "STANDARD IR";
-                    case SensorMode.FlirIronbow: return "LONGBOW";
-                    case SensorMode.FlirWhiteHot: return "IR BLACK";
-                    default: return "STANDARD IR";
-                }
-            }
-        }
-
-        internal bool ShowModeMessage { get { return Time.unscaledTime < _modeMessageUntil; } }
-
+        internal string ModeLabel { get { return Mode == SensorMode.Ironbow ? "IRONBOW" : "STANDARD IR"; } }
         internal float ModeMessageAlpha
         {
             get
             {
                 float now = Time.unscaledTime;
-                if (now >= _modeMessageUntil) return 0f;
-                float elapsed = now - _modeMessageStartedAt;
+                if (now >= messageUntil) return 0f;
+                float elapsed = now - messageStarted;
                 if (elapsed < 0.18f) return Mathf.Clamp01(elapsed / 0.18f);
-                float remaining = _modeMessageUntil - now;
-                if (remaining < 0.45f) return Mathf.Clamp01(remaining / 0.45f);
-                return 1f;
+                float remaining = messageUntil - now;
+                return remaining < 0.45f ? Mathf.Clamp01(remaining / 0.45f) : 1f;
             }
         }
 
-        internal SensorSuite(BlindPlugin plugin)
-        {
-            _plugin = plugin;
-            _thermal = new ThermalRenderer(plugin);
-            Subscribe();
-        }
+        internal SensorSuite(BlindPlugin plugin) { this.plugin = plugin; }
 
         internal void Update(Aircraft aircraft)
         {
-            if (_plugin.SensorModeKey.Value.IsDown())
+            if (plugin.SensorModeKey.Value.IsDown())
             {
-                Mode = (SensorMode)(((int)Mode + 1) % 3);
-                _modeMessageStartedAt = Time.unscaledTime;
-                _modeMessageUntil = Time.unscaledTime + 2.5f;
+                Mode = Mode == SensorMode.VanillaIR ? SensorMode.Ironbow : SensorMode.VanillaIR;
+                messageStarted = Time.unscaledTime;
+                messageUntil = messageStarted + 2.5f;
                 BlindPlugin.LogSource.LogMessage("[B.L.I.N.D.] Sensor mode: " + ModeLabel);
             }
 
-            TargetCam targetCam = aircraft == null ? null : aircraft.targetCam;
-            if (targetCam != _targetCam || (targetCam != null && _profile == null))
-            {
-                Attach(targetCam);
-            }
-
-            if (_targetCam != null && _profile != null)
-            {
-                ApplyMode();
-            }
+            TargetCam next = aircraft == null ? null : aircraft.targetCam;
+            if (next != targetCam || (next != null && profile == null)) Attach(next);
+            ApplyMode();
         }
 
-        internal void LateUpdate()
-        {
-            if (_targetCam != null && _profile != null)
-            {
-                ApplyMode();
-            }
-        }
+        internal void LateUpdate() { ApplyMode(); }
 
         internal void Shutdown()
         {
-            _thermal.SetCamera(null, SensorMode.VanillaIR);
-            RestoreNeutralProfile();
-            if (_subscribed)
-            {
-                RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
-                _subscribed = false;
-            }
-            _thermal.Dispose();
             ReleaseProfile();
+            if (ironbowLut != null) UnityEngine.Object.Destroy(ironbowLut);
+            ironbowLut = null;
+            targetCam = null;
         }
 
-        internal bool IsAtmosphereLimited(TargetCam targetCam, Camera camera)
+        private void Attach(TargetCam next)
         {
-            return targetCam != null && targetCam == _targetCam && camera == _camera &&
-                   (Mode == SensorMode.FlirIronbow || Mode == SensorMode.FlirWhiteHot);
-        }
-
-        private void Subscribe()
-        {
-            if (_subscribed) return;
-            RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
-            _subscribed = true;
-        }
-
-        private void Attach(TargetCam targetCam)
-        {
-            _thermal.SetCamera(null, SensorMode.VanillaIR);
-            RestoreNeutralProfile();
             ReleaseProfile();
-            _targetCam = targetCam;
-            _camera = null;
-            _volume = null;
-            _profile = null;
-            _color = null;
-            _bloom = null;
-            _grain = null;
-            _lookup = null;
+            targetCam = next;
+            if (targetCam == null) return;
+            volume = VolumeField == null ? null : VolumeField.GetValue(targetCam) as Volume;
+            originalProfile = volume == null ? null : volume.profile;
+            if (originalProfile == null) return;
 
-            if (_targetCam == null) return;
-
-            _camera = CameraField == null ? null : CameraField.GetValue(_targetCam) as Camera;
-            _volume = VolumeField == null ? null : VolumeField.GetValue(_targetCam) as Volume;
-            _originalProfile = _volume == null ? null : _volume.profile;
-            if (_originalProfile != null)
-            {
-                _profile = ScriptableObject.CreateInstance<VolumeProfile>();
-                foreach (var component in _originalProfile.components)
-                    _profile.components.Add(UnityEngine.Object.Instantiate(component));
-            }
-            if (_volume != null && _profile != null) _volume.profile = _profile;
-            if (_profile == null) return;
-
-            if (!_profile.TryGet(out _color))
-            {
-                _color = _profile.Add<ColorAdjustments>(true);
-            }
-            if (!_profile.TryGet(out _bloom))
-            {
-                _bloom = _profile.Add<Bloom>(false);
-            }
-            if (!_profile.TryGet(out _grain))
-            {
-                _grain = _profile.Add<FilmGrain>(false);
-            }
-            if (!_profile.TryGet(out _lookup))
-            {
-                _lookup = _profile.Add<ColorLookup>(false);
-            }
-
-            _bloomOriginalActive = _bloom.active;
-            _bloomOriginalIntensity = _bloom.intensity.value;
-            _bloomOriginalThreshold = _bloom.threshold.value;
-            _grainOriginalActive = _grain.active;
-            _grainOriginalIntensity = _grain.intensity.value;
+            profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            foreach (VolumeComponent component in originalProfile.components)
+                profile.components.Add(UnityEngine.Object.Instantiate(component));
+            volume.profile = profile;
+            if (!profile.TryGet(out color)) color = profile.Add<ColorAdjustments>(true);
+            if (!profile.TryGet(out lookup)) lookup = profile.Add<ColorLookup>(false);
         }
 
         private void ApplyMode()
         {
-            if (_color == null) return;
+            if (targetCam == null || profile == null || color == null) return;
 
-            if (Mode == SensorMode.VanillaIR)
-            {
-                _thermal.SetCamera(null, SensorMode.VanillaIR);
-                RestoreNeutralProfile();
+            // These are the same camera settings for both modes. No scene mesh,
+            // particle, depth, or IRSource is re-rendered by BLIND.
+            float ambient = NetworkSceneSingleton<LevelInfo>.i == null
+                ? 0.2f : NetworkSceneSingleton<LevelInfo>.i.GetAmbientLight();
+            float daylight = Mathf.InverseLerp(0.02f, 0.4f, ambient);
+            color.active = true;
+            color.saturation.overrideState = true;
+            color.saturation.value = -100f;
+            color.contrast.overrideState = true;
+            color.contrast.value = 1f;
+            color.postExposure.overrideState = true;
+            color.postExposure.value = Mathf.Lerp(3f, -0.5f, daylight);
+            if (IrModeField != null) IrModeField.SetValue(targetCam, true);
 
-                float ambient = NetworkSceneSingleton<LevelInfo>.i == null
-                    ? 0.2f
-                    : NetworkSceneSingleton<LevelInfo>.i.GetAmbientLight();
-                float daylight = Mathf.InverseLerp(0.02f, 0.4f, ambient);
-
-                _color.active = true;
-                _color.saturation.overrideState = true;
-                _color.saturation.value = -100f;
-                _color.contrast.overrideState = true;
-                _color.contrast.value = 1f;
-                _color.postExposure.overrideState = true;
-                _color.postExposure.value = Mathf.Lerp(3f, -0.5f, daylight);
-
-                if (IrModeField != null) IrModeField.SetValue(_targetCam, true);
-                return;
-            }
-
-            // The thermal pass supplies its own radiance/palette and bypasses visible-light postprocessing.
-            _thermal.SetCamera(_camera, Mode);
-            RestoreNeutralProfile();
-            if (IrModeField != null) IrModeField.SetValue(_targetCam, _thermal.Ready());
+            if (lookup == null) return;
+            bool ironbow = Mode == SensorMode.Ironbow && EnsureLut();
+            lookup.active = ironbow;
+            lookup.texture.overrideState = ironbow;
+            lookup.texture.value = ironbow ? ironbowLut : null;
+            lookup.contribution.overrideState = ironbow;
+            lookup.contribution.value = ironbow ? 1f : 0f;
         }
 
-        private void RestoreNeutralProfile()
+        private bool EnsureLut()
         {
-            if (_color != null)
+            UniversalRenderPipelineAsset asset = UniversalRenderPipeline.asset;
+            if (asset == null)
             {
-                _color.saturation.overrideState = false;
-                _color.colorFilter.overrideState = false;
+                if (!warnedLut)
+                {
+                    warnedLut = true;
+                    BlindPlugin.LogSource.LogWarning("[Ironbow] URP asset unavailable; keeping native IR.");
+                }
+                return false;
             }
-            if (_lookup != null)
+            int size = asset.colorGradingLutSize;
+            if (ironbowLut != null && ironbowLut.height == size) return true;
+            if (ironbowLut != null) UnityEngine.Object.Destroy(ironbowLut);
+            ironbowLut = new Texture2D(size * size, size, TextureFormat.RGBA32, false, true)
             {
-                _lookup.active = false;
-                _lookup.contribution.value = 0f;
-            }
-            if (_grain != null)
-            {
-                _grain.active = _grainOriginalActive;
-                _grain.intensity.value = _grainOriginalIntensity;
-            }
-            if (_bloom != null)
-            {
-                _bloom.active = _bloomOriginalActive;
-                _bloom.intensity.value = _bloomOriginalIntensity;
-                _bloom.threshold.value = _bloomOriginalThreshold;
-            }
+                name = "BLIND Ironbow color lookup",
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            Color[] pixels = new Color[size * size * size];
+            float step = 1f / (size - 1f);
+            for (int b = 0; b < size; b++)
+                for (int g = 0; g < size; g++)
+                    for (int r = 0; r < size; r++)
+                    {
+                        float brightness = (0.2126f * r + 0.7152f * g + 0.0722f * b) * step;
+                        int x = b * size + r;
+                        pixels[g * size * size + x] = Ironbow(brightness);
+                    }
+            ironbowLut.SetPixels(pixels);
+            ironbowLut.Apply(false, true);
+            BlindPlugin.LogSource.LogInfo("[Ironbow] Native IR color lookup ready: " + size + " levels.");
+            return true;
         }
 
-        private void OnBeginCameraRendering(ScriptableRenderContext context, Camera camera)
+        private static Color Ironbow(float t)
         {
-            if (camera == _camera)
-            {
-                ApplyMode();
-                RenderSettings.fog = false;
-            }
+            Color black = new Color(0.015f, 0.008f, 0.035f);
+            Color violet = new Color(0.18f, 0.025f, 0.30f);
+            Color red = new Color(0.62f, 0.04f, 0.22f);
+            Color orange = new Color(0.95f, 0.30f, 0.025f);
+            Color yellow = new Color(1f, 0.77f, 0.15f);
+            Color white = new Color(1f, 0.99f, 0.94f);
+            if (t < 0.2f) return Color.Lerp(black, violet, t / 0.2f);
+            if (t < 0.4f) return Color.Lerp(violet, red, (t - 0.2f) / 0.2f);
+            if (t < 0.65f) return Color.Lerp(red, orange, (t - 0.4f) / 0.25f);
+            if (t < 0.85f) return Color.Lerp(orange, yellow, (t - 0.65f) / 0.2f);
+            return Color.Lerp(yellow, white, (t - 0.85f) / 0.15f);
         }
 
         private void ReleaseProfile()
         {
-            if (_volume != null && _originalProfile != null) _volume.profile = _originalProfile;
-            if (_profile != null)
+            if (volume != null && originalProfile != null) volume.profile = originalProfile;
+            if (profile != null)
             {
-                foreach (var component in _profile.components) UnityEngine.Object.Destroy(component);
-                UnityEngine.Object.Destroy(_profile);
+                foreach (VolumeComponent component in profile.components)
+                    UnityEngine.Object.Destroy(component);
+                UnityEngine.Object.Destroy(profile);
             }
-            _profile = null;
-            _originalProfile = null;
+            volume = null;
+            originalProfile = null;
+            profile = null;
+            color = null;
+            lookup = null;
         }
     }
 }

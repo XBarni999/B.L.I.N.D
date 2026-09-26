@@ -117,11 +117,8 @@ namespace BLIND
                 case SensorMode.VanillaIR:
                     accentColor = new Color(0.85f, 0.90f, 0.95f);
                     break;
-                case SensorMode.FlirIronbow:
+                case SensorMode.Ironbow:
                     accentColor = new Color(1f, 0.65f, 0.28f);
-                    break;
-                case SensorMode.FlirWhiteHot:
-                    accentColor = new Color(0.60f, 0.88f, 1f);
                     break;
                 default:
                     accentColor = Color.white;

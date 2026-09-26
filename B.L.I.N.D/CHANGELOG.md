@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0
+
+- Keep two cockpit modes: STANDARD IR and IRONBOW.
+- Apply Ironbow as a Unity URP color lookup to the game's existing IR image.
+- Remove the separate heat renderer, particle and missile hooks, depth handling, shader bundle, and white-hot mode.
+- Keep JTAC designation and laser seeker behavior unchanged.
+
 ## 0.5.3
 
 - Skip ship wake, foam, water and other non-thermal meshes in the actual ship draw loop.

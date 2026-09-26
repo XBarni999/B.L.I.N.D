@@ -12,15 +12,12 @@ namespace BLIND
     {
         public const string PluginGuid = "ua.ncmod.blind";
         public const string PluginName = "B.L.I.N.D. - Best Luminescence & Infrared Navigation Device";
-        public const string PluginVersion = "0.5.3";
+        public const string PluginVersion = "0.6.0";
 
         internal static ManualLogSource LogSource;
         internal static BlindPlugin Instance;
 
         internal ConfigEntry<KeyboardShortcut> SensorModeKey;
-        internal ConfigEntry<float> ThermalSpan;
-        internal ConfigEntry<float> ThermalNoise;
-        internal ConfigEntry<float> WhiteHotCeiling;
         internal ConfigEntry<bool> EnableJtac;
         internal ConfigEntry<float> GroundLaserRange;
         internal ConfigEntry<float> NavalLaserRange;
@@ -38,13 +35,7 @@ namespace BLIND
             LogSource = Logger;
 
             SensorModeKey = Config.Bind("Sensors", "CycleModeKey", new KeyboardShortcut(KeyCode.F7),
-                "Cycle STANDARD IR, LONGBOW and IR BLACK on the cockpit target camera.");
-            ThermalSpan = Config.Bind("Sensors", "ThermalSpan", 1.25f,
-                new ConfigDescription("Fixed thermal display span. Lower values increase contrast; fixed gain prevents flashes darkening the whole scene.", new AcceptableValueRange<float>(0.5f, 4f)));
-            ThermalNoise = Config.Bind("Sensors", "ThermalNoise", 0.008f,
-                new ConfigDescription("Thermal detector noise amplitude.", new AcceptableValueRange<float>(0f, 0.04f)));
-            WhiteHotCeiling = Config.Bind("Sensors", "WhiteHotCeiling", 0.86f,
-                new ConfigDescription("Maximum display brightness in WHITE HOT, with a soft highlight shoulder. Does not change Ironbow.", new AcceptableValueRange<float>(0.5f, 1f)));
+                "Toggle STANDARD IR and IRONBOW on the cockpit target camera.");
             EnableJtac = Config.Bind("JTAC", "Enabled", true,
                 "Allow allied ground vehicles and naval ships to designate hostile surface/naval targets. Host authority is required.");
             GroundLaserRange = Config.Bind("JTAC", "GroundLaserRange", 4000f,
@@ -80,13 +71,6 @@ namespace BLIND
                 return;
             }
             Logger.LogInfo(PluginName + " " + PluginVersion + " loaded for Nuclear Option 0.34.x.");
-#if BLIND_DIAGNOSTICS
-            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "--blind-render-test") >= 0)
-            {
-                Application.runInBackground = true;
-                gameObject.AddComponent<ThermalRuntimeProbe>();
-            }
-#endif
         }
 
         private void OnDestroy()

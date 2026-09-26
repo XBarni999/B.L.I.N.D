@@ -1,25 +1,22 @@
 # B.L.I.N.D.
 
-**Best Luminescence & Infrared Navigation Device** — cockpit thermal imaging,
+**Best Luminescence & Infrared Navigation Device** — cockpit IR color grading,
 and allied ground/naval laser designation for **Nuclear Option**.
 
 [Download](https://github.com/XBarni999/B.L.I.N.D/releases) ·
 [Report an issue](https://github.com/XBarni999/B.L.I.N.D/issues) ·
 [Changes](CHANGELOG.md)
 
-Press **F7** to cycle **STANDARD IR → LONGBOW → IR BLACK**.
-The thermal pass runs on the cockpit target camera; the outside view and the
-original vehicle materials keep their normal appearance.
+Press **F7** to toggle **STANDARD IR ↔ IRONBOW**. Both use the game's original
+IR camera. Ironbow only changes its color lookup; target geometry, heat,
+clouds, explosions, and depth remain the game's own rendering.
 
 ## What it does
 
-### 1. Cockpit Thermal Imaging (FLIR)
-- **Three streamlined sensor modes**:
-  - **STANDARD IR**: Enhanced vanilla night-vision / infrared with dynamic daylight exposure balance.
-  - **LONGBOW**: Classic Ironbow high-contrast thermal palette mapping engine heat, weapon signatures, and body temperatures.
-  - **IR BLACK**: Clean White-Hot thermal profile with an adjustable soft highlight shoulder ceiling.
-- Engine hotspots use the game's native infrared signatures; body heat responds dynamically to engine activity, movement, and structural damage.
-- Burning missile motors have dedicated radiant exhaust footprints, while lingering smoke trails remain cool.
+### 1. Cockpit IR
+- **STANDARD IR**: The game's original IR view with the existing daylight exposure adjustment.
+- **IRONBOW**: The same IR view with a color lookup applied to its brightness.
+- BLIND does not redraw targets or effects, and it does not calculate separate heat values.
 
 ### 2. Allied Ground & Naval Laser Designation (JTAC)
 - **Multi-Target Designation**: Select multiple hostile surface or naval targets in your weapon manager. Allied units will automatically and greedily pair with available targets (1 ally lases 1 target) based on proximity and line of sight.
@@ -31,22 +28,21 @@ original vehicle materials keep their normal appearance.
 
 - **Windows x64**, Nuclear Option **0.34.x** (compatible with 0.34.1+).
 - **BepInEx 5 for Unity Mono** installed and working.
-- Both `BLIND.dll` and `blind-thermal.bundle` from the **same release**.
+- `BLIND.dll` version 0.6.0 or newer. The old shader bundle is no longer needed.
 
 BLIND is standalone. Its repository and release contain only BLIND files.
 
 ## Install or update
 
 1. Close the game.
-2. When updating, back up the old BLIND DLL and bundle **outside** `BepInEx/plugins`,
-   then remove those old copies. Keep exactly one installed `BLIND.dll`.
+2. When updating, back up the old BLIND files **outside** `BepInEx/plugins`.
+   Remove the obsolete `blind-thermal.bundle` and keep one installed `BLIND.dll`.
 3. Extract `BLIND.zip` into the game folder. The resulting files should be:
 
 ```text
 Nuclear Option/
 └─ BepInEx/plugins/BLIND/
-   ├─ BLIND.dll
-   └─ blind-thermal.bundle
+   └─ BLIND.dll
 ```
 
 4. Launch the game, enter an aircraft, select a target so its cockpit screen is
@@ -54,11 +50,11 @@ Nuclear Option/
    `BepInEx/config/ua.ncmod.blind.cfg`.
 
 Restart after updating. Replacing files does not reload an already running mod.
-To uninstall, close the game and remove the two BLIND files.
+To uninstall, close the game and remove `BLIND.dll`.
 
 ## Multiplayer and JTAC
 
-Sensor modes are local client visual improvements. JTAC designation requires host authority and is driven by the **host player's local aircraft**; client-only installations retain thermal imaging but cannot originate JTAC designations. Vanilla explosion effects are unchanged.
+Sensor modes are local client visual changes. JTAC designation requires host authority and is driven by the **host player's local aircraft**; client-only installations retain the IR modes but cannot originate JTAC designations. Vanilla explosion effects are unchanged.
 
 ## Configuration
 
@@ -67,10 +63,7 @@ Edit `BepInEx/config/ua.ncmod.blind.cfg` with the game closed, or use the BepInE
 | Setting | Default | Purpose |
 |---|---:|---|
 | **Sensors** | | |
-| `Sensors.CycleModeKey` | `F7` | Keybind to cycle sensor modes |
-| `Sensors.ThermalSpan` | `1.25` | Heat display dynamic range; lower gives stronger contrast |
-| `Sensors.ThermalNoise` | `0.008` | Fine detector noise; set to `0` for pristine digital image |
-| `Sensors.WhiteHotCeiling` | `0.86` | Maximum highlight brightness in IR BLACK |
+| `Sensors.CycleModeKey` | `F7` | Toggle STANDARD IR and IRONBOW |
 | **JTAC** | | |
 | `JTAC.Enabled` | `true` | Enable allied ground and naval laser designation on host |
 | `JTAC.GroundLaserRange` | `4000` | Maximum observer-to-target designation range for ground vehicles (m) |
@@ -90,12 +83,7 @@ dotnet build B.L.I.N.D/BLIND.csproj -c Release --no-restore -p:GameDir="F:\path\
 ```
 
 Game and BepInEx assemblies are referenced from your installation and are not
-redistributed. The prebuilt shader bundle is included. To rebuild it, open
-`B.L.I.N.D/ShaderProject` with the recorded Unity Editor version (6000.2.7f2), or:
-
-```powershell
-Unity.exe -batchmode -quit -projectPath "<absolute path>/B.L.I.N.D/ShaderProject" -executeMethod BuildThermal.Build -logFile "<build log>"
-```
+redistributed. No separate Unity shader project or asset bundle is required.
 
 Create the distribution archive with `B.L.I.N.D/tools/Package.ps1`.
 See [validation notes](VALIDATION.md) for the checks and their limits.
