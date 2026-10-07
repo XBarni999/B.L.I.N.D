@@ -1,14 +1,18 @@
-**B.L.I.N.D. 0.6.0 — native IR with an Ironbow color option**
+**B.L.I.N.D. 0.7.0 — IR missiles against ground targets**
 
-Press **F7** to toggle STANDARD IR and IRONBOW on the cockpit target screen.
-Ironbow is a color lookup over the game's original IR image. The mod no longer
-re-renders aircraft, buildings, clouds, explosions, or missiles for thermal
-effects. The white-hot mode and shader bundle have been removed.
+Aircraft-carried heat-seeking air-to-air missiles can now engage ground vehicles
+and buildings. Balance is simple: **85% of native maximum range** and **1.25 s**
+of continuous acquisition. The small AIM-9-style circle pulses amber while acquiring
+and becomes smaller and green after lock.
 
-Allied ground and naval JTAC designation remains available.
+Modded missiles using the native IRSeeker and an anti-air weapon role are detected
+automatically. Custom replacement seekers may need separate integration.
 
-**Requirements:** Windows x64, Nuclear Option 0.34.x, BepInEx 5 Mono.
-**Install:** Close the game, install one `BLIND.dll`, and remove the old
-`blind-thermal.bundle` if updating from 0.5.x.
+STANDARD IR / IRONBOW and allied ground/naval JTAC remain available.
+Air-to-air guidance, missile physics and warhead damage are preserved.
 
-Source / feedback: https://github.com/XBarni999/B.L.I.N.D
+**Install:** Close Nuclear Option and replace your single BLIND.dll.
+**Multiplayer:** Host and participating clients need the same build and configuration.
+**Requirements:** Nuclear Option 0.34.x, Windows x64, BepInEx 5 Mono.
+
+Source / downloads: https://github.com/XBarni999/B.L.I.N.D

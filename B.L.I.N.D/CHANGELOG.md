@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0
+
+- Allow aircraft-carried anti-air IR missiles to engage ground vehicles and buildings.
+- Use 85% of native maximum range and 1.25 seconds of continuous ground acquisition.
+- Add a small AIM-9-style ground lock circle: amber while acquiring, green and tighter after lock.
+- Preserve native firing arc, seeker guidance, warheads, air-to-air and JTAC behavior.
+- Show an IR A/G acquisition/readiness cue and validate client launch requests on the server.
+- Add a temporary seeker source for ground targets that lack a native IR source.
+- Automatically include modded anti-air weapons that use the native IRSeeker path.
+- Player confirmed gameplay operation; full modded-weapon and multiplayer coverage remains unverified.
+
 ## 0.6.0
 
 - Keep two cockpit modes: STANDARD IR and IRONBOW.

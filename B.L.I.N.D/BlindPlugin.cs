@@ -12,7 +12,7 @@ namespace BLIND
     {
         public const string PluginGuid = "ua.ncmod.blind";
         public const string PluginName = "B.L.I.N.D. - Best Luminescence & Infrared Navigation Device";
-        public const string PluginVersion = "0.6.0";
+        public const string PluginVersion = "0.7.0";
 
         internal static ManualLogSource LogSource;
         internal static BlindPlugin Instance;
@@ -25,6 +25,10 @@ namespace BLIND
         internal ConfigEntry<float> MaxDesignationTime;
         internal ConfigEntry<float> DesignatorCooldown;
         internal ConfigEntry<int> MaxConcurrentDesignations;
+
+        internal ConfigEntry<bool> EnableIrGroundAttack;
+        internal ConfigEntry<float> IrGroundRangeFraction;
+        internal ConfigEntry<float> IrGroundLockTime;
 
         private Harmony _harmony;
         private BlindRuntime _runtime;
@@ -56,6 +60,12 @@ namespace BLIND
             MaxConcurrentDesignations = Config.Bind("JTAC", "MaxConcurrentDesignations", 4,
                 new ConfigDescription("Maximum simultaneous ground designations for the local faction.",
                     new AcceptableValueRange<int>(1, 16)));
+            EnableIrGroundAttack = Config.Bind("IRGroundAttack", "Enabled", true,
+                "Allow aircraft-carried anti-air IR missiles to attack ground vehicles and buildings. Install on host and clients.");
+            IrGroundRangeFraction = Config.Bind("IRGroundAttack", "RangeFraction", 0.85f,
+                new ConfigDescription("Ground range as a fraction of the weapon's native maximum range.", new AcceptableValueRange<float>(0.1f, 1f)));
+            IrGroundLockTime = Config.Bind("IRGroundAttack", "LockTime", 1.25f,
+                new ConfigDescription("Continuous ground-target acquisition time in seconds. Air targets remain vanilla.", new AcceptableValueRange<float>(0.25f, 5f)));
             _runtime = gameObject.AddComponent<BlindRuntime>();
             _runtime.Initialize(this);
 

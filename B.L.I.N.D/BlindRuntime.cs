@@ -14,6 +14,11 @@ namespace BLIND
         private GUIStyle _targetLabelStyle;
         private Texture2D _boxTexture;
         private Aircraft _localAircraft;
+        private float _nextIrGroundCheck;
+        private Texture2D _irLockCircle;
+        private Unit _irGroundTarget;
+        private bool _irGroundReady;
+        private bool _irGroundAcquiring;
 
         internal SensorSuite Sensors { get; private set; }
 
@@ -38,9 +43,11 @@ namespace BLIND
 
         internal void Shutdown()
         {
+            IrGroundAttack.Shutdown();
             if (_jtac != null) _jtac.Shutdown();
             if (Sensors != null) Sensors.Shutdown();
             if (_boxTexture != null) Destroy(_boxTexture);
+            if (_irLockCircle != null) Destroy(_irLockCircle);
             Instance = null;
         }
 
@@ -49,6 +56,25 @@ namespace BLIND
             if (!GameManager.GetLocalAircraft(out _localAircraft))
             {
                 _localAircraft = null;
+            }
+            if (Time.unscaledTime >= _nextIrGroundCheck)
+            {
+                _nextIrGroundCheck = Time.unscaledTime + 0.1f;
+                IrGroundAttack.Tick();
+                _irGroundTarget = null;
+                if (_localAircraft != null && _localAircraft.weaponManager != null)
+                {
+                    var station = _localAircraft.weaponManager.currentWeaponStation;
+                    var targets = _localAircraft.weaponManager.GetTargetList();
+                    if (station != null && station.Ammo > 0 && targets.Count > 0 &&
+                        IrGroundAttack.Applies(_localAircraft, station.WeaponInfo, targets[0]))
+                    {
+                        _irGroundTarget = targets[0];
+                        _irGroundReady = IrGroundAttack.Check(_localAircraft, station.WeaponInfo,
+                            _irGroundTarget, out string status);
+                        _irGroundAcquiring = status != null && status.StartsWith("IR A/G: ACQUIRING");
+                    }
+                }
             }
             Sensors.Update(_localAircraft);
             _jtac.Update(_localAircraft);
@@ -69,7 +95,7 @@ namespace BLIND
         {
             if (_localAircraft == null || Sensors == null || _jtac == null) return;
             EnsureStyles();
-
+            DrawIrLockCircle();
             // 1. Стильний авіаційний OSD індикатор режимів сенсора (у верхній зоні HUD)
             DrawSensorModeBanner();
 
@@ -101,6 +127,43 @@ namespace BLIND
             }
         }
 
+        private void DrawIrLockCircle()
+        {
+            if (_irGroundTarget == null || _irGroundTarget.disabled || _localAircraft.gearDeployed) return;
+            var hud = SceneSingleton<CombatHUD>.i;
+            var cameraState = SceneSingleton<CameraStateManager>.i;
+            if (hud == null || !hud.gameObject.activeInHierarchy || cameraState == null || cameraState.mainCamera == null) return;
+            Vector3 point = cameraState.mainCamera.WorldToScreenPoint(_irGroundTarget.transform.position);
+            if (point.z <= 0f || point.x < 0f || point.x > Screen.width || point.y < 0f || point.y > Screen.height) return;
+            if (_irLockCircle == null)
+            {
+                const int size = 64;
+                _irLockCircle = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                _irLockCircle.hideFlags = HideFlags.HideAndDontSave;
+                _irLockCircle.wrapMode = TextureWrapMode.Clamp;
+                _irLockCircle.filterMode = FilterMode.Bilinear;
+                var pixels = new Color[size * size];
+                for (int y = 0; y < size; y++)
+                    for (int x = 0; x < size; x++)
+                    {
+                        float dx = x - (size - 1) * 0.5f;
+                        float dy = y - (size - 1) * 0.5f;
+                        float edge = Mathf.Abs(Mathf.Sqrt(dx * dx + dy * dy) - 27f);
+                        pixels[y * size + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(2f - edge));
+                    }
+                _irLockCircle.SetPixels(pixels);
+                _irLockCircle.Apply(false, true);
+            }
+            float scale = Mathf.Clamp(Screen.height / 1080f, 0.75f, 1.5f);
+            float diameter = (_irGroundReady ? 26f : 34f) * scale;
+            float pulse = 0.75f + 0.2f * Mathf.Sin(Time.unscaledTime * 8f);
+            Color previous = GUI.color;
+            GUI.color = _irGroundReady ? new Color(0.35f, 1f, 0.65f, 0.95f) :
+                (_irGroundAcquiring ? new Color(1f, 0.75f, 0.25f, pulse) : new Color(0.65f, 0.7f, 0.7f, 0.55f));
+            GUI.DrawTexture(new Rect(point.x - diameter * 0.5f,
+                Screen.height - point.y - diameter * 0.5f, diameter, diameter), _irLockCircle);
+            GUI.color = previous;
+        }
         private void DrawSensorModeBanner()
         {
             float alpha = Sensors.ModeMessageAlpha;

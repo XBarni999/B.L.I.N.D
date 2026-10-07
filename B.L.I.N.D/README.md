@@ -24,11 +24,42 @@ clouds, explosions, and depth remain the game's own rendering.
 - **Seeker Memory & Evasion Persistence**: When launching laser-guided weapons (e.g. AGM-48, laser bombs), the missile seeker memorizes its designated target. You can safely turn away, maneuver to evade air defenses, or deselect the target without breaking missile lock while an ally continues designation.
 - **Subtle HUD Telemetry**: Minimalist, non-intrusive corner brackets (`┌ ┐ └ ┘`) track each designated target on the HUD with exact telemetry, accompanied by a clean status banner (`JTAC [2 TGT] • 4.2 KM`).
 
+## IR air-to-ground attacks (0.7.0)
+
+Aircraft-carried IR missiles whose primary role is anti-air can also engage ground
+vehicles and buildings. Select a ground target and keep it inside the weapon's
+native firing arc. The `IR A/G` cue shows acquisition progress and launch blockers.
+A small target-following circle pulses amber during acquisition, turns green and
+shrinks after lock, and stays dim grey while launch conditions are unmet.
+
+- Ground slant range is **85% of the weapon's native maximum range**.
+- Ground acquisition takes **1.25 seconds** continuously. Changing the target or
+  weapon, losing visibility, or leaving the native arc/range resets acquisition.
+- Air-to-air behavior, warhead damage, missile physics and native IR guidance are unchanged.
+- For units without an IR source, a temporary source is passed to the native seeker
+  during initialization; it does not alter the sensor renderer or persist on the unit.
+- Install the same build/configuration on the host and participating clients.
+
+`IRGroundAttack.Enabled`, `RangeFraction` (0.85) and `LockTime` (1.25) are configurable.
+Range uses the weapon's configured maximum, rather than a claimed guaranteed hit distance.
+
+### Modded missile compatibility
+
+Detection is automatic and uses components/weapon roles, rather than vanilla names
+or a fixed whitelist. Modded aircraft-carried weapons are included when they have
+`WeaponInfo.missile = true`, `antiAir > antiSurface`, and an `IRSeeker` component
+on their projectile prefab. Late-loaded Blueprinter weapons use the same checks.
+
+Installed Meridian Works code was checked and uses the native `IRSeeker` path.
+This is a code compatibility check, not a firing test of every modded weapon.
+Custom seekers that replace native IR initialization or launch handling may need
+separate integration. Radar-guided missiles and surface-launched SAMs are excluded.
+
 ## Requirements
 
 - **Windows x64**, Nuclear Option **0.34.x** (compatible with 0.34.1+).
 - **BepInEx 5 for Unity Mono** installed and working.
-- `BLIND.dll` version 0.6.0 or newer. The old shader bundle is no longer needed.
+- `BLIND.dll` version 0.7.0 or newer. The old shader bundle is no longer needed.
 
 BLIND is standalone. Its repository and release contain only BLIND files.
 
