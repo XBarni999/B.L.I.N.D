@@ -116,7 +116,7 @@ dotnet build B.L.I.N.D/BLIND.csproj -c Release --no-restore -p:GameDir="F:\path\
 Game and BepInEx assemblies are referenced from your installation and are not
 redistributed. No separate Unity shader project or asset bundle is required.
 
-Create the distribution archive with `B.L.I.N.D/tools/Package.ps1`.
+The compiled DLL is written to `B.L.I.N.D/bin/Release/BLIND.dll`.
 See [validation notes](VALIDATION.md) for the checks and their limits.
 
 Created by **XBarni999** for Nuclear Option by **Shockfront Studios**.
